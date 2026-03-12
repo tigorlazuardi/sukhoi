@@ -1,0 +1,47 @@
+{
+  "repo": "https://github.com/your-org/your-repo.git",
+  "baseBranch": "main",
+
+  "prompt": "You are an autonomous coding agent. You are given a task from a project management system.\n\nYour job:\n1. Read the task description carefully.\n2. Explore the codebase to understand existing patterns and conventions before making changes.\n3. Implement the required changes with minimal, focused modifications.\n4. Ensure code quality — run `pnpm typecheck` before finishing.\n5. Only modify files relevant to the task. Do not refactor unrelated code.\n6. Follow the existing code style, naming conventions, and file structure.\n\nThe task will be provided below with its full context.",
+
+  "classifier": {
+    "model": "haiku",
+    "enabled": true
+  },
+
+  "models": {
+    "opus":   "anthropic/claude-opus-4-20250901",
+    "sonnet": "anthropic/claude-sonnet-4-20250514",
+    "haiku":  "anthropic/claude-haiku-4-20250307",
+    "codex":  "openai/codex-mini-latest",
+    "glm":    "openrouter/thudm/glm-4-32b"
+  },
+
+  "routing": [
+    {
+      "name": "critical-by-label",
+      "match": {
+        "priority": ["urgent"],
+        "labels": ["auth", "payment"]
+      },
+      "model": "opus"
+    },
+    {
+      "name": "complex-tasks",
+      "match": { "complexity": ["complex"] },
+      "model": "opus"
+    },
+    {
+      "name": "typical-tasks",
+      "match": { "complexity": ["typical"] },
+      "model": "sonnet"
+    },
+    {
+      "name": "boilerplate-tasks",
+      "match": { "complexity": ["boilerplate"] },
+      "model": "haiku"
+    }
+  ],
+
+  "defaultModel": "sonnet"
+}
