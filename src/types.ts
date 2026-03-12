@@ -28,7 +28,7 @@ export interface PlaneState {
 
 export interface PlaneWebhookPayload {
   event: string
-  action: 'create' | 'update' | 'delete'
+  action: 'created' | 'updated' | 'deleted'
   webhook_id: string
   workspace_id: string
   data: PlaneIssue | { id: string }
