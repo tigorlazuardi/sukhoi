@@ -63,7 +63,7 @@ JOB_TIMEOUT_MS=600000
 It is mounted into the container at runtime and hot-reloaded on changes.
 
 ```bash
-cp sukhoi.config.json.example sukhoi.config.json
+cp sukhoi.config.example.json sukhoi.config.json
 ```
 
 Then edit `sukhoi.config.json` to point to your repo and define your routing rules:
