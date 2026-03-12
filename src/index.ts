@@ -1,6 +1,7 @@
 import http from 'node:http'
 import { env, getConfig, watchConfig } from './config.js'
-import { getStateId } from './plane.js'
+import { addComment, getIssue, getStateId } from './plane.js'
+import { buildQueuedComment } from './prompt.js'
 import { JobQueue } from './queue.js'
 import { processJob } from './worker.js'
 import { createWebhookHandler, setTodoStateId } from './webhook.js'
@@ -37,7 +38,17 @@ async function main(): Promise<void> {
 
   // ── Create webhook handler ─────────────────────────────────────────────────
   const handleRequest = createWebhookHandler(({ issueId, projectId }) => {
-    queue.enqueue(issueId, projectId)
+    const job = queue.enqueue(issueId, projectId)
+    // Post acknowledgement comment immediately — fire and forget
+    getIssue(projectId, issueId)
+      .then((issue) => {
+        const queueDepth = queue.depth + queue.activeCount
+        const comment = buildQueuedComment(issue, queueDepth)
+        return addComment(projectId, issueId, comment)
+      })
+      .catch((err: unknown) => {
+        console.warn(`[sukhoi] Could not post queued comment for job ${job.id}:`, (err as Error).message)
+      })
   })
 
   // ── Start HTTP server ──────────────────────────────────────────────────────

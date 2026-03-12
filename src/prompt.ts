@@ -61,6 +61,17 @@ export function buildPrBody(
     .join('\n')
 }
 
+export function buildQueuedComment(issue: PlaneIssue, queueDepth: number): string {
+  const lines = [
+    `**Sukhoi received BOOTH9-${issue.sequence_id}.**`,
+    '',
+    queueDepth <= 1
+      ? 'Task is next in line and will start shortly.'
+      : `Task queued at position ${queueDepth}. It will start after ${queueDepth - 1} job(s) ahead of it.`,
+  ]
+  return lines.join('\n')
+}
+
 export function buildPlaneComment(
   issue: PlaneIssue,
   model: string,
