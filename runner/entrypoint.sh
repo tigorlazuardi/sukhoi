@@ -19,7 +19,7 @@ set -euo pipefail
 #   COMPLEXITY_REASON   - One-sentence explanation from classifier, empty if not classified
 #
 # Optional env vars:
-#   OPENCODE_CONFIG_PATH - Host path to opencode config file (MCP servers, etc.)
+#   OPENCODE_CONFIG_PATH - Path to opencode config file inside the container (MCP servers, etc.)
 #   ANTHROPIC_API_KEY
 #   OPENAI_API_KEY
 #   OPENROUTER_API_KEY

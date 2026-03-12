@@ -100,8 +100,8 @@ export async function processJob(job: Job): Promise<void> {
   }
 
   // If user provided an opencode config, expose its path to the entrypoint
-  if (env.opencodeConfigHostPath) {
-    runnerEnv['OPENCODE_CONFIG_PATH'] = env.opencodeConfigHostPath
+  if (env.opencodeConfigPath) {
+    runnerEnv['OPENCODE_CONFIG_PATH'] = env.opencodeConfigPath
   }
 
   console.log(`[worker] Running entrypoint for ${issueLabel} with model ${model}...`)

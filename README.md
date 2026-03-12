@@ -111,13 +111,19 @@ If you want to pass MCP servers, custom model settings, or other OpenCode config
 }
 ```
 
-Then set its **absolute path** in `.env`:
+Then mount it into the container and set the in-container path in `.env`:
 
-```bash
-OPENCODE_CONFIG_HOST_PATH=/home/youruser/opencode.json
+```yaml
+# docker-compose.yml volumes:
+volumes:
+  - /home/youruser/opencode.json:/opencode.json:ro
 ```
 
-The file is copied into `~/.config/opencode/config.json` inside the container before each job runs. Changes take effect on the next job without any restart.
+```bash
+OPENCODE_CONFIG_PATH=/opencode.json
+```
+
+The file is copied to `~/.config/opencode/config.json` inside the container before each job runs. Changes take effect on the next job without any restart.
 
 ### 5. Start the service
 
@@ -276,5 +282,5 @@ The classifier is only called if a rule uses `complexity` and no earlier rule ma
 | `CONCURRENCY` | no | Max parallel jobs (default: `1`) |
 | `JOB_TIMEOUT_MS` | no | Runner timeout in ms (default: `600000`) |
 | `REPO_CACHE_DIR` | no | Repo cache path inside container (default: `/repo-cache`) |
-| `OPENCODE_CONFIG_HOST_PATH` | no | Absolute path to opencode config file on host |
+| `OPENCODE_CONFIG_PATH` | no | In-container path to opencode config file (mount via volumes) |
 | `SUKHOI_IMAGE` | no | GHCR image to use instead of building locally |

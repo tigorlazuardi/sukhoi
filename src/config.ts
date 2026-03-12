@@ -176,5 +176,5 @@ export const env = {
   get jobTimeoutMs() { return parseInt(process.env['JOB_TIMEOUT_MS'] ?? '600000', 10) },
   // Optional: path to an opencode config file inside the container.
   // When set, the file is copied to ~/.config/opencode/config.json before each job.
-  get opencodeConfigHostPath() { return process.env['OPENCODE_CONFIG_HOST_PATH'] ?? '' },
+  get opencodeConfigPath() { return process.env['OPENCODE_CONFIG_PATH'] ?? '' },
 }
