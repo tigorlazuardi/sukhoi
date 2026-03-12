@@ -4,7 +4,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { env, getConfig } from './config.js'
 import { addComment, getIssue, getStateId, updateIssueState } from './plane.js'
-import { buildPlaneComment, buildPrBody, buildPrompt } from './prompt.js'
+import { buildPlaneComment, buildPrBody, buildPrompt, buildRoutingComment } from './prompt.js'
 import { routeModel } from './router.js'
 import type { Job, RunnerResult } from './types.js'
 
@@ -54,6 +54,14 @@ export async function processJob(job: Job): Promise<void> {
   // ── Route model ────────────────────────────────────────────────────────────
   const { model, reason: modelReason, complexity: classified } = await routeModel(issue, config)
   console.log(`[worker] Model: ${model} — ${modelReason}`)
+
+  // ── Post routing comment immediately ──────────────────────────────────────
+  await addComment(
+    projectId,
+    issueId,
+    buildRoutingComment(issue, model, modelReason, classified),
+  )
+  console.log(`[worker] Routing comment posted on ${issueLabel}`)
 
   // ── Build prompt ───────────────────────────────────────────────────────────
   const prompt = buildPrompt(config, issue)
@@ -153,10 +161,6 @@ export async function processJob(job: Job): Promise<void> {
   // ── Post comment on Plane issue ────────────────────────────────────────────
   const comment = buildPlaneComment(
     issue,
-    runnerResult.model ?? model,
-    runnerResult.model_reason ?? modelReason,
-    runnerResult.complexity,
-    runnerResult.complexity_reason,
     runnerResult.pr_url,
     runnerResult.commit_url,
     runnerResult.usage,

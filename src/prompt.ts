@@ -1,4 +1,5 @@
 import { stripHtml } from './classifier.js'
+import type { ClassifyResult } from './classifier.js'
 import type { PlaneIssue, RunnerUsage, SukhoiConfig } from './types.js'
 
 export function buildPrompt(config: SukhoiConfig, issue: PlaneIssue): string {
@@ -61,6 +62,27 @@ export function buildPrBody(
     .join('\n')
 }
 
+export function buildRoutingComment(
+  issue: PlaneIssue,
+  model: string,
+  modelReason: string,
+  complexity: ClassifyResult | null,
+): string {
+  const lines = [
+    `**Sukhoi is working on BOOTH9-${issue.sequence_id}.**`,
+    '',
+    `**Model:** \`${model}\``,
+    `**Why:** ${modelReason}`,
+  ]
+
+  if (complexity) {
+    lines.push(`**Complexity:** \`${complexity.result}\``)
+    lines.push(`**Complexity reason:** ${complexity.reason}`)
+  }
+
+  return lines.join('\n')
+}
+
 export function buildQueuedComment(issue: PlaneIssue, queueDepth: number): string {
   const lines = [
     `**Sukhoi received BOOTH9-${issue.sequence_id}.**`,
@@ -74,10 +96,6 @@ export function buildQueuedComment(issue: PlaneIssue, queueDepth: number): strin
 
 export function buildPlaneComment(
   issue: PlaneIssue,
-  model: string,
-  modelReason: string,
-  complexity: string | null,
-  complexityReason: string | null,
   prUrl: string | null,
   commitUrl: string | null,
   usage: RunnerUsage | null,
@@ -95,19 +113,6 @@ export function buildPlaneComment(
   }
   if (!prUrl && !commitUrl) {
     lines.push('No changes were made.')
-  }
-
-  lines.push('')
-  lines.push('---')
-  lines.push('')
-  lines.push('**Model:** `' + model + '`')
-  lines.push('**Why:** ' + modelReason)
-
-  if (complexity) {
-    lines.push(`**Complexity:** \`${complexity}\``)
-    if (complexityReason) {
-      lines.push(`**Complexity reason:** ${complexityReason}`)
-    }
   }
 
   if (usage) {
