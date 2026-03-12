@@ -88,6 +88,8 @@ export async function processJob(job: Job): Promise<void> {
     '--env', `ANTHROPIC_API_KEY=${env.anthropicApiKey}`,
     '--env', `OPENAI_API_KEY=${env.openaiApiKey}`,
     '--env', `OPENROUTER_API_KEY=${env.openrouterApiKey}`,
+    '--env', `WORKLOG_ENABLED=${config.worklog?.enabled ?? false}`,
+    '--env', `WORKLOG_MAX_ENTRIES=${config.worklog?.maxEntries ?? 20}`,
     RUNNER_IMAGE,
   ]
 

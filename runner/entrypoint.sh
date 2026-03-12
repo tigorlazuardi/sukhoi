@@ -2,24 +2,29 @@
 set -euo pipefail
 
 # Required env vars (passed by sukhoi service):
-#   GITHUB_TOKEN     - GitHub PAT for auth + gh CLI
-#   REPO_URL         - Git clone URL of target repo
-#   BASE_BRANCH      - Base branch to create new branch from (e.g. "main")
-#   BRANCH_NAME      - New branch name (e.g. "fix/booth9-42")
-#   ISSUE_ID         - Issue identifier (e.g. "BOOTH9-42")
-#   ISSUE_TITLE      - Issue title (for PR title)
-#   MODEL            - OpenCode model string (e.g. "anthropic/claude-sonnet-4-20250514")
-#   PROMPT           - Full prompt (operation prompt + task context, pre-built by sukhoi)
-#   REPO_CACHE_DIR   - Host path mounted at /repo-cache (persistent git clone)
+#   GITHUB_TOKEN        - GitHub PAT for auth + gh CLI
+#   REPO_URL            - Git clone URL of target repo (authenticated HTTPS)
+#   BASE_BRANCH         - Base branch to create new branch from (e.g. "main")
+#   BRANCH_NAME         - New branch name (e.g. "fix/booth9-42")
+#   ISSUE_ID            - Issue identifier (e.g. "BOOTH9-42")
+#   ISSUE_TITLE         - Issue title (for PR title)
+#   MODEL               - OpenCode model string (e.g. "anthropic/claude-sonnet-4-20250514")
+#   PROMPT              - Full prompt (operation prompt + task context, pre-built by sukhoi)
+#   WORKLOG_ENABLED     - "true" to enable persistent work log (default: "false")
+#   WORKLOG_MAX_ENTRIES - Max entries to keep in worklog (default: 20)
 #
 # Optional env vars (passed through for OpenCode):
 #   ANTHROPIC_API_KEY
 #   OPENAI_API_KEY
 #   OPENROUTER_API_KEY
 
-CACHE_DIR="/repo-cache"       # persistent volume mount point
-WORKTREE_DIR="/workspace/task" # isolated working tree for this task
+CACHE_DIR="/repo-cache"            # persistent volume mount point
+WORKTREE_DIR="/workspace/task"     # isolated working tree for this task
 RESULT_FILE="/workspace/result.json"
+WORKLOG_CACHE="$CACHE_DIR/.sukhoi/worklog.md"   # persistent worklog (never committed)
+WORKLOG_WORKTREE="$WORKTREE_DIR/.sukhoi/worklog.md"
+WORKLOG_ENABLED="${WORKLOG_ENABLED:-false}"
+WORKLOG_MAX_ENTRIES="${WORKLOG_MAX_ENTRIES:-20}"
 
 # ── 1. Auth GitHub ───────────────────────────────────────────────────────────
 echo "[sukhoi-runner] Authenticating with GitHub..."
@@ -79,18 +84,27 @@ cd "$WORKTREE_DIR"
 echo "[sukhoi-runner] Installing dependencies..."
 pnpm install --frozen-lockfile
 
-# ── 6. Run OpenCode agent ────────────────────────────────────────────────────
+# ── 6. Inject worklog into worktree (read-only context for OpenCode) ─────────
+if [ "$WORKLOG_ENABLED" = "true" ] && [ -f "$WORKLOG_CACHE" ]; then
+  echo "[sukhoi-runner] Injecting worklog into worktree..."
+  mkdir -p "$WORKTREE_DIR/.sukhoi"
+  cp "$WORKLOG_CACHE" "$WORKLOG_WORKTREE"
+  # Exclude from git so it is never staged or committed
+  echo ".sukhoi/worklog.md" >> "$WORKTREE_DIR/.git/info/exclude"
+fi
+
+# ── 7. Run OpenCode agent ────────────────────────────────────────────────────
 echo "[sukhoi-runner] Running OpenCode with model: $MODEL"
 opencode run \
   --model "$MODEL" \
   --print \
   "$PROMPT"
 
-# ── 7. Verify typecheck ──────────────────────────────────────────────────────
+# ── 8. Verify typecheck ──────────────────────────────────────────────────────
 echo "[sukhoi-runner] Running typecheck..."
 pnpm typecheck
 
-# ── 8. Commit changes ────────────────────────────────────────────────────────
+# ── 9. Commit changes ────────────────────────────────────────────────────────
 git add -A
 
 if git diff --cached --quiet; then
@@ -108,7 +122,7 @@ git commit -m "fix: resolve $ISSUE_ID
 Automated implementation by Sukhoi agent.
 Model: $MODEL"
 
-# ── 9. Push branch ───────────────────────────────────────────────────────────
+# ── 10. Push branch ──────────────────────────────────────────────────────────
 echo "[sukhoi-runner] Pushing branch..."
 git push origin "$BRANCH_NAME"
 
@@ -116,18 +130,19 @@ git push origin "$BRANCH_NAME"
 REMOTE_URL=$(git remote get-url origin)
 HTTPS_REMOTE=$(echo "$REMOTE_URL" \
   | sed 's|git@github.com:|https://github.com/|' \
-  | sed 's|\.git$||')
+  | sed 's|\.git$||' \
+  | sed 's|https://x-access-token:[^@]*@|https://|')
 
 COMMIT_SHA=$(git rev-parse HEAD)
 COMMIT_URL="${HTTPS_REMOTE}/commit/${COMMIT_SHA}"
 
-# ── 10. Create PR ────────────────────────────────────────────────────────────
+# ── 11. Create PR ────────────────────────────────────────────────────────────
 echo "[sukhoi-runner] Creating pull request..."
 PR_BODY="Resolves task: **${ISSUE_ID}**
 
 ## Changes
 
-This PR was automatically implemented by [Sukhoi](https://github.com/tigor/sukhoi) autonomous coding agent.
+This PR was automatically implemented by [Sukhoi](https://github.com/tigorlazuardi/sukhoi) autonomous coding agent.
 
 **Model:** \`${MODEL}\`
 **Branch:** \`${BRANCH_NAME}\`
@@ -141,13 +156,42 @@ PR_URL=$(gh pr create \
 
 echo "[sukhoi-runner] PR created: $PR_URL"
 
-# ── 11. Cleanup worktree (keep repo cache) ───────────────────────────────────
+# ── 12. Update persistent worklog ────────────────────────────────────────────
+if [ "$WORKLOG_ENABLED" = "true" ]; then
+  echo "[sukhoi-runner] Updating worklog..."
+  mkdir -p "$CACHE_DIR/.sukhoi"
+
+  TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  NEW_ENTRY="## ${ISSUE_ID} — ${TIMESTAMP}
+**Task:** ${ISSUE_TITLE}
+**Branch:** \`${BRANCH_NAME}\`
+**PR:** ${PR_URL}
+**Commit:** ${COMMIT_URL}
+**Model:** \`${MODEL}\`
+---"
+
+  # Prepend new entry so newest is at the top
+  TMPLOG=$(mktemp)
+  printf '%s\n' "$NEW_ENTRY" > "$TMPLOG"
+  [ -f "$WORKLOG_CACHE" ] && cat "$WORKLOG_CACHE" >> "$TMPLOG"
+
+  # Trim: keep only WORKLOG_MAX_ENTRIES entries (each separated by "---" on its own line)
+  awk -v max="$WORKLOG_MAX_ENTRIES" '
+    /^---$/ { count++; if (count > max) exit }
+    { print }
+  ' "$TMPLOG" > "$WORKLOG_CACHE"
+
+  rm -f "$TMPLOG"
+  echo "[sukhoi-runner] Worklog updated (max ${WORKLOG_MAX_ENTRIES} entries)."
+fi
+
+# ── 13. Cleanup worktree (keep repo cache) ───────────────────────────────────
 cd "$CACHE_DIR"
 git worktree remove --force "$WORKTREE_DIR"
 # Keep the branch in cache so git doesn't complain — it's already pushed
 # It will be pruned on next fetch cycle if needed
 
-# ── 12. Write result for sukhoi service ──────────────────────────────────────
+# ── 14. Write result for sukhoi service ──────────────────────────────────────
 cat > "$RESULT_FILE" <<EOF
 {
   "pr_url": "$PR_URL",

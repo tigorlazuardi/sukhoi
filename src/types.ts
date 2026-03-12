@@ -53,6 +53,11 @@ export interface ClassifierConfig {
   enabled: boolean
 }
 
+export interface WorklogConfig {
+  enabled: boolean
+  maxEntries: number // how many recent entries to keep on disk
+}
+
 export interface SukhoiConfig {
   repo: string
   baseBranch: string
@@ -61,6 +66,7 @@ export interface SukhoiConfig {
   models: Record<string, string> // alias → "provider/model"
   routing: RoutingRule[]
   defaultModel: string // alias key
+  worklog?: WorklogConfig
 }
 
 // ── Job ──────────────────────────────────────────────────────────────────────

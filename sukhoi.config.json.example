@@ -43,5 +43,10 @@
     }
   ],
 
-  "defaultModel": "sonnet"
+  "defaultModel": "sonnet",
+
+  "worklog": {
+    "enabled": true,
+    "maxEntries": 20
+  }
 }

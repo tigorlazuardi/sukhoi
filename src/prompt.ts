@@ -28,7 +28,14 @@ export function buildPrompt(config: SukhoiConfig, issue: PlaneIssue): string {
     .filter((line) => line !== undefined)
     .join('\n')
 
-  return `${config.prompt}\n\n${taskContext}`
+  const worklogNote =
+    config.worklog?.enabled
+      ? '\n\nIf the file .sukhoi/worklog.md exists in the project root, read it ' +
+        'before starting work. It contains a log of recent tasks completed by ' +
+        'this agent — use it to understand prior decisions and avoid repeating mistakes.'
+      : ''
+
+  return `${config.prompt}${worklogNote}\n\n${taskContext}`
 }
 
 export function buildPrBody(
