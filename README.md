@@ -66,9 +66,16 @@ CONCURRENCY=1
 JOB_TIMEOUT_MS=600000
 ```
 
-### 4. Configure sukhoi
+### 4. Create your config file
 
-Edit `sukhoi.config.json` to point to your repo and define your routing rules:
+`sukhoi.config.json` is **not** included in the Docker image — you must create it yourself.
+It is mounted into the container at runtime and hot-reloaded on changes.
+
+```bash
+cp sukhoi.config.json.example sukhoi.config.json
+```
+
+Then edit `sukhoi.config.json` to point to your repo and define your routing rules:
 
 ```jsonc
 {
@@ -90,7 +97,8 @@ Edit `sukhoi.config.json` to point to your repo and define your routing rules:
 }
 ```
 
-The `sukhoi.config.json` is hot-reloaded — changes take effect immediately without restarting the service.
+> **Note:** If the file is missing, the container will fail to start with a clear error message.
+> The config is hot-reloaded — changes take effect immediately without restarting the service.
 
 ### 5. Start the service
 
