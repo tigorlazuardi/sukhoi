@@ -9,6 +9,31 @@ import { routeModel } from './router.js'
 import type { Job, RunnerResult } from './types.js'
 
 const RUNNER_IMAGE = process.env['RUNNER_IMAGE'] ?? 'sukhoi-runner:latest'
+const REPO_CACHE_VOLUME = 'sukhoi-repos'
+
+/**
+ * Convert a repo URL (SSH or HTTPS) to an authenticated HTTPS URL.
+ * e.g. git@github.com:org/repo.git  → https://x-access-token:TOKEN@github.com/org/repo.git
+ *      https://github.com/org/repo  → https://x-access-token:TOKEN@github.com/org/repo
+ */
+function buildAuthenticatedRepoUrl(repoUrl: string, token: string): string {
+  // SSH format: git@github.com:org/repo.git
+  const sshMatch = repoUrl.match(/^git@([^:]+):(.+)$/)
+  if (sshMatch) {
+    const [, host, path] = sshMatch
+    return `https://x-access-token:${token}@${host}/${path}`
+  }
+
+  // HTTPS format: https://github.com/org/repo
+  const httpsMatch = repoUrl.match(/^https?:\/\/([^/]+)\/(.+)$/)
+  if (httpsMatch) {
+    const [, host, repoPath] = httpsMatch
+    return `https://x-access-token:${token}@${host}/${repoPath}`
+  }
+
+  // Fallback: return as-is
+  return repoUrl
+}
 
 export async function processJob(job: Job): Promise<void> {
   const config = getConfig()
@@ -35,6 +60,9 @@ export async function processJob(job: Job): Promise<void> {
   const branchName = `fix/${issueLabel.toLowerCase()}`
   const prBody = buildPrBody(issue, model, branchName)
 
+  // ── Authenticated repo URL (HTTPS token-based, no SSH key needed) ──────────
+  const repoUrl = buildAuthenticatedRepoUrl(config.repo, env.githubToken)
+
   // ── Prepare result dir (mounted from host into container) ──────────────────
   const resultDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sukhoi-'))
   const resultFile = path.join(resultDir, 'result.json')
@@ -45,9 +73,11 @@ export async function processJob(job: Job): Promise<void> {
     '--rm',
     // Mount result dir so we can read result.json after container exits
     '--volume', `${resultDir}:/workspace`,
+    // Persistent repo cache volume (shared across all runner containers)
+    '--volume', `${REPO_CACHE_VOLUME}:/repo-cache`,
     // Pass all env vars
     '--env', `GITHUB_TOKEN=${env.githubToken}`,
-    '--env', `REPO_URL=${config.repo}`,
+    '--env', `REPO_URL=${repoUrl}`,
     '--env', `BASE_BRANCH=${config.baseBranch}`,
     '--env', `BRANCH_NAME=${branchName}`,
     '--env', `ISSUE_ID=${issueLabel}`,

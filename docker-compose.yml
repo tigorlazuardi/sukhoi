@@ -19,3 +19,9 @@ services:
       # Mount config for hot reload without rebuild
       - ./sukhoi.config.json:/app/sukhoi.config.json:ro
     restart: unless-stopped
+
+volumes:
+  # Persistent repo cache shared across all runner containers.
+  # Runner containers mount this as /repo-cache via --volume sukhoi-repos:/repo-cache.
+  # Prevents full re-clone on every task — git fetch + reset instead.
+  sukhoi-repos:
