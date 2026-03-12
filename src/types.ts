@@ -36,7 +36,8 @@ export interface PlaneWebhookPayload {
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
-export type Complexity = 'boilerplate' | 'typical' | 'complex'
+// Complexity is now a user-defined string key from classifier.complexity config
+export type Complexity = string
 
 export interface RoutingRule {
   name: string
@@ -49,8 +50,11 @@ export interface RoutingRule {
 }
 
 export interface ClassifierConfig {
-  model: string // alias key into config.models
+  model: string   // alias key into config.models
   enabled: boolean
+  // Map of complexity label → description used in the classifier prompt.
+  // Keys are the valid complexity values routing rules can reference.
+  complexity: Record<string, string>
 }
 
 export interface WorklogConfig {
@@ -95,6 +99,8 @@ export interface RunnerResult {
   branch: string | null
   model: string | null
   model_reason: string | null
+  complexity: string | null
+  complexity_reason: string | null
   skipped: boolean
   usage: RunnerUsage | null
 }

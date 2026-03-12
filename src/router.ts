@@ -1,9 +1,11 @@
 import { classifyComplexity } from './classifier.js'
+import type { ClassifyResult } from './classifier.js'
 import type { Complexity, PlaneIssue, RoutingRule, SukhoiConfig } from './types.js'
 
 export interface RouteResult {
-  model: string  // resolved "provider/model" string
-  reason: string // human-readable explanation for the Plane comment
+  model: string       // resolved "provider/model" string
+  reason: string      // why this model was selected (routing rule explanation)
+  complexity: ClassifyResult | null  // classifier output if used, null otherwise
 }
 
 function ruleNeedsComplexity(rules: RoutingRule[]): boolean {
@@ -27,11 +29,10 @@ function matchesRule(
 
   let complexityOk = true
   if (complexityMatch && complexityMatch.length > 0) {
-    if (complexity === null) return false // not yet classified
+    if (complexity === null) return false
     complexityOk = complexityMatch.includes(complexity)
   }
 
-  // All specified conditions must match (AND)
   const checks: boolean[] = []
   if (priority && priority.length > 0) checks.push(priorityOk)
   if (labels && labels.length > 0) checks.push(labelsOk)
@@ -77,7 +78,7 @@ export async function routeModel(
   issue: PlaneIssue,
   config: SukhoiConfig
 ): Promise<RouteResult> {
-  let complexity: Complexity | null = null
+  let classified: ClassifyResult | null = null
 
   // First pass: try to match rules that don't need complexity (no LLM call)
   for (const rule of config.routing) {
@@ -89,28 +90,28 @@ export async function routeModel(
       const model = config.models[rule.model]!
       const reason = buildReason(rule, rule.model, model, null)
       console.log(`[router] Rule "${rule.name}" matched (no classifier) → ${model}`)
-      return { model, reason }
+      return { model, reason, complexity: null }
     }
   }
 
   // Second pass: if any rules need complexity, classify once then evaluate all
   if (ruleNeedsComplexity(config.routing)) {
-    complexity = await classifyComplexity(issue, config)
+    classified = await classifyComplexity(issue, config)
 
     for (const rule of config.routing) {
-      if (matchesRule(rule, issue, complexity)) {
+      if (matchesRule(rule, issue, classified.result)) {
         const model = config.models[rule.model]!
-        const reason = buildReason(rule, rule.model, model, complexity)
+        const reason = buildReason(rule, rule.model, model, classified.result)
         console.log(
-          `[router] Rule "${rule.name}" matched (complexity=${complexity}) → ${model}`
+          `[router] Rule "${rule.name}" matched (complexity=${classified.result}) → ${model}`
         )
-        return { model, reason }
+        return { model, reason, complexity: classified }
       }
     }
   }
 
   const defaultModel = config.models[config.defaultModel]!
-  const reason = buildReason(null, config.defaultModel, defaultModel, complexity)
+  const reason = buildReason(null, config.defaultModel, defaultModel, classified?.result ?? null)
   console.log(`[router] No rule matched → default ${defaultModel}`)
-  return { model: defaultModel, reason }
+  return { model: defaultModel, reason, complexity: classified }
 }

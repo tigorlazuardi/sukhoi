@@ -55,6 +55,15 @@ function validate(raw: unknown): SukhoiConfig {
     )
   }
 
+  const DEFAULT_COMPLEXITY: Record<string, string> = {
+    boilerplate:
+      'Repetitive or standard code. Examples: CRUD endpoints, config files, adding fields to existing patterns, simple UI components that mirror existing ones.',
+    typical:
+      'Standard SWE work. Examples: implementing a well-defined feature, API endpoint with business logic, database queries, unit tests, integrating a known library.',
+    complex:
+      'Requires architectural thinking or significant design decisions. Examples: multi-step user flows, security-critical features (auth, permissions), data migrations, system design, cross-cutting concerns.',
+  }
+
   const classifier = (() => {
     const raw = cfg['classifier'] as Record<string, unknown> | undefined
     const model =
@@ -66,7 +75,33 @@ function validate(raw: unknown): SukhoiConfig {
     }
     const enabled =
       typeof raw?.['enabled'] === 'boolean' ? raw['enabled'] : true
-    return { model, enabled }
+
+    // complexity: user-defined map of label → description
+    // Falls back to built-in boilerplate/typical/complex if not set
+    const rawComplexity = raw?.['complexity']
+    let complexity: Record<string, string>
+    if (
+      typeof rawComplexity === 'object' &&
+      rawComplexity !== null &&
+      !Array.isArray(rawComplexity)
+    ) {
+      const entries = Object.entries(rawComplexity as Record<string, unknown>)
+      if (entries.length === 0) {
+        throw new Error('sukhoi.config.json: classifier.complexity must not be empty')
+      }
+      for (const [label, desc] of entries) {
+        if (typeof desc !== 'string') {
+          throw new Error(
+            `sukhoi.config.json: classifier.complexity["${label}"] must be a string`
+          )
+        }
+      }
+      complexity = rawComplexity as Record<string, string>
+    } else {
+      complexity = DEFAULT_COMPLEXITY
+    }
+
+    return { model, enabled, complexity }
   })()
 
   if (!Array.isArray(cfg['routing'])) {

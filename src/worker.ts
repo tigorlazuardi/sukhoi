@@ -52,7 +52,7 @@ export async function processJob(job: Job): Promise<void> {
   console.log(`[worker] State → In Progress`)
 
   // ── Route model ────────────────────────────────────────────────────────────
-  const { model, reason: modelReason } = await routeModel(issue, config)
+  const { model, reason: modelReason, complexity: classified } = await routeModel(issue, config)
   console.log(`[worker] Model: ${model} — ${modelReason}`)
 
   // ── Build prompt ───────────────────────────────────────────────────────────
@@ -85,6 +85,8 @@ export async function processJob(job: Job): Promise<void> {
     WORKLOG_ENABLED:     String(config.worklog?.enabled ?? false),
     WORKLOG_MAX_ENTRIES: String(config.worklog?.maxEntries ?? 20),
     MODEL_REASON:        modelReason,
+    COMPLEXITY:          classified?.result ?? '',
+    COMPLEXITY_REASON:   classified?.reason ?? '',
     RESULT_DIR:          resultDir,
     REPO_CACHE_DIR:      REPO_CACHE_DIR,
   }
@@ -122,14 +124,16 @@ export async function processJob(job: Job): Promise<void> {
 
   // Read result.json written by entrypoint.sh
   let runnerResult: RunnerResult = {
-    pr_url:       null,
-    commit_url:   null,
-    commit_sha:   null,
-    branch:       null,
-    model:        model,
-    model_reason: modelReason,
-    skipped:      false,
-    usage:        null,
+    pr_url:            null,
+    commit_url:        null,
+    commit_sha:        null,
+    branch:            null,
+    model:             model,
+    model_reason:      modelReason,
+    complexity:        classified?.result ?? null,
+    complexity_reason: classified?.reason ?? null,
+    skipped:           false,
+    usage:             null,
   }
 
   try {
@@ -151,6 +155,8 @@ export async function processJob(job: Job): Promise<void> {
     issue,
     runnerResult.model ?? model,
     runnerResult.model_reason ?? modelReason,
+    runnerResult.complexity,
+    runnerResult.complexity_reason,
     runnerResult.pr_url,
     runnerResult.commit_url,
     runnerResult.usage,

@@ -15,6 +15,8 @@ set -euo pipefail
 #   WORKLOG_ENABLED     - "true" to enable persistent work log (default: "false")
 #   WORKLOG_MAX_ENTRIES - Max entries to keep in worklog (default: 20)
 #   MODEL_REASON        - Human-readable reason why this model was selected
+#   COMPLEXITY          - Complexity label from classifier (e.g. "typical"), empty if not classified
+#   COMPLEXITY_REASON   - One-sentence explanation from classifier, empty if not classified
 #
 # Optional env vars:
 #   OPENCODE_CONFIG_PATH - Host path to opencode config file (MCP servers, etc.)
@@ -152,11 +154,13 @@ if git diff --cached --quiet; then
 const result = {
   pr_url: null, commit_url: null, commit_sha: null, branch: '${BRANCH_NAME}',
   model: '${MODEL}', model_reason: process.env.MODEL_REASON || '',
+  complexity: process.env.COMPLEXITY || null,
+  complexity_reason: process.env.COMPLEXITY_REASON || null,
   skipped: true,
   usage: ${USAGE_JSON},
 };
 require('fs').writeFileSync('${RESULT_FILE}', JSON.stringify(result, null, 2));
-" MODEL_REASON="$MODEL_REASON"
+" MODEL_REASON="$MODEL_REASON" COMPLEXITY="$COMPLEXITY" COMPLEXITY_REASON="$COMPLEXITY_REASON"
   cd "$CACHE_DIR"
   git worktree remove --force "$WORKTREE_DIR"
   git branch -D "$BRANCH_NAME"
@@ -244,10 +248,12 @@ const result = {
   branch: '${BRANCH_NAME}',
   model: '${MODEL}',
   model_reason: process.env.MODEL_REASON || '',
+  complexity: process.env.COMPLEXITY || null,
+  complexity_reason: process.env.COMPLEXITY_REASON || null,
   skipped: false,
   usage,
 };
 require('fs').writeFileSync('${RESULT_FILE}', JSON.stringify(result, null, 2));
-" MODEL_REASON="$MODEL_REASON"
+" MODEL_REASON="$MODEL_REASON" COMPLEXITY="$COMPLEXITY" COMPLEXITY_REASON="$COMPLEXITY_REASON"
 
 echo "[sukhoi-runner] Done."

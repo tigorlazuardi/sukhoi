@@ -65,6 +65,8 @@ export function buildPlaneComment(
   issue: PlaneIssue,
   model: string,
   modelReason: string,
+  complexity: string | null,
+  complexityReason: string | null,
   prUrl: string | null,
   commitUrl: string | null,
   usage: RunnerUsage | null,
@@ -90,6 +92,13 @@ export function buildPlaneComment(
   lines.push('**Model:** `' + model + '`')
   lines.push('**Why:** ' + modelReason)
 
+  if (complexity) {
+    lines.push(`**Complexity:** \`${complexity}\``)
+    if (complexityReason) {
+      lines.push(`**Complexity reason:** ${complexityReason}`)
+    }
+  }
+
   if (usage) {
     const costStr = usage.cost_usd > 0
       ? `$${usage.cost_usd.toFixed(6)}`
@@ -100,7 +109,7 @@ export function buildPlaneComment(
     lines.push(
       `| Metric | Value |`,
       `|--------|-------|`,
-      `| Cost   | ${costStr} |`,
+      `| Cost | ${costStr} |`,
       `| Input tokens | ${usage.tokens_input.toLocaleString()} |`,
       `| Output tokens | ${usage.tokens_output.toLocaleString()} |`,
       `| Cache read | ${usage.tokens_cache_read.toLocaleString()} |`,

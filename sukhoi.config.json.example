@@ -6,7 +6,12 @@
 
   "classifier": {
     "model": "haiku",
-    "enabled": true
+    "enabled": true,
+    "complexity": {
+      "boilerplate": "Repetitive or standard code. Examples: CRUD endpoints, config files, adding fields to existing patterns, simple UI components that mirror existing ones.",
+      "typical": "Standard SWE work. Examples: implementing a well-defined feature, API endpoint with business logic, database queries, unit tests, integrating a known library.",
+      "complex": "Requires architectural thinking or significant design decisions. Examples: multi-step user flows, security-critical features (auth, permissions), data migrations, system design, cross-cutting concerns."
+    }
   },
 
   "models": {
