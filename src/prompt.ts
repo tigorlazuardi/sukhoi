@@ -1,5 +1,5 @@
 import { stripHtml } from './classifier.js'
-import type { PlaneIssue, SukhoiConfig } from './types.js'
+import type { PlaneIssue, RunnerUsage, SukhoiConfig } from './types.js'
 
 export function buildPrompt(config: SukhoiConfig, issue: PlaneIssue): string {
   const labels =
@@ -64,25 +64,48 @@ export function buildPrBody(
 export function buildPlaneComment(
   issue: PlaneIssue,
   model: string,
+  modelReason: string,
   prUrl: string | null,
-  commitUrl: string | null
+  commitUrl: string | null,
+  usage: RunnerUsage | null,
 ): string {
   const lines = [
-    `**Sukhoi agent completed task BOOTH9-${issue.sequence_id}.**`,
+    `**Sukhoi agent completed BOOTH9-${issue.sequence_id}.**`,
     '',
-    `**Model used:** \`${model}\``,
   ]
-
-  if (commitUrl) {
-    lines.push(`**Commit:** [${commitUrl.split('/').pop()}](${commitUrl})`)
-  }
 
   if (prUrl) {
     lines.push(`**Pull Request:** [${prUrl}](${prUrl})`)
   }
-
+  if (commitUrl) {
+    lines.push(`**Commit:** [${commitUrl.split('/').pop()}](${commitUrl})`)
+  }
   if (!prUrl && !commitUrl) {
     lines.push('No changes were made.')
+  }
+
+  lines.push('')
+  lines.push('---')
+  lines.push('')
+  lines.push('**Model:** `' + model + '`')
+  lines.push('**Why:** ' + modelReason)
+
+  if (usage) {
+    const costStr = usage.cost_usd > 0
+      ? `$${usage.cost_usd.toFixed(6)}`
+      : '<$0.000001'
+
+    lines.push('')
+    lines.push('**Usage:**')
+    lines.push(
+      `| Metric | Value |`,
+      `|--------|-------|`,
+      `| Cost   | ${costStr} |`,
+      `| Input tokens | ${usage.tokens_input.toLocaleString()} |`,
+      `| Output tokens | ${usage.tokens_output.toLocaleString()} |`,
+      `| Cache read | ${usage.tokens_cache_read.toLocaleString()} |`,
+      `| Cache write | ${usage.tokens_cache_write.toLocaleString()} |`,
+    )
   }
 
   return lines.join('\n')

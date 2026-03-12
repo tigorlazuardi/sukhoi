@@ -1,6 +1,11 @@
 import { classifyComplexity } from './classifier.js'
 import type { Complexity, PlaneIssue, RoutingRule, SukhoiConfig } from './types.js'
 
+export interface RouteResult {
+  model: string  // resolved "provider/model" string
+  reason: string // human-readable explanation for the Plane comment
+}
+
 function ruleNeedsComplexity(rules: RoutingRule[]): boolean {
   return rules.some((r) => r.match.complexity && r.match.complexity.length > 0)
 }
@@ -35,10 +40,43 @@ function matchesRule(
   return checks.length > 0 && checks.every(Boolean)
 }
 
+function buildReason(
+  rule: RoutingRule | null,
+  modelAlias: string,
+  model: string,
+  complexity: Complexity | null
+): string {
+  if (!rule) {
+    return `No routing rule matched — fell back to default model \`${modelAlias}\` (\`${model}\`).`
+  }
+
+  const parts: string[] = [`Rule **"${rule.name}"** matched`]
+
+  const conditions: string[] = []
+  if (rule.match.priority?.length) {
+    conditions.push(`priority is \`${rule.match.priority.join(' or ')}\``)
+  }
+  if (rule.match.labels?.length) {
+    conditions.push(`label matches \`${rule.match.labels.join(' or ')}\``)
+  }
+  if (rule.match.complexity?.length) {
+    conditions.push(
+      `task complexity classified as \`${complexity}\` (matches \`${rule.match.complexity.join(' or ')}\`)`
+    )
+  }
+
+  if (conditions.length > 0) {
+    parts.push(`because ${conditions.join(' and ')}`)
+  }
+
+  parts.push(`→ selected \`${modelAlias}\` (\`${model}\`)`)
+  return parts.join(' ')
+}
+
 export async function routeModel(
   issue: PlaneIssue,
   config: SukhoiConfig
-): Promise<string> {
+): Promise<RouteResult> {
   let complexity: Complexity | null = null
 
   // First pass: try to match rules that don't need complexity (no LLM call)
@@ -48,11 +86,10 @@ export async function routeModel(
     if (needsComplexity) continue
 
     if (matchesRule(rule, issue, null)) {
-      const model = config.models[rule.model]
-      console.log(
-        `[router] Rule "${rule.name}" matched (no classifier) → ${model}`
-      )
-      return model
+      const model = config.models[rule.model]!
+      const reason = buildReason(rule, rule.model, model, null)
+      console.log(`[router] Rule "${rule.name}" matched (no classifier) → ${model}`)
+      return { model, reason }
     }
   }
 
@@ -62,16 +99,18 @@ export async function routeModel(
 
     for (const rule of config.routing) {
       if (matchesRule(rule, issue, complexity)) {
-        const model = config.models[rule.model]
+        const model = config.models[rule.model]!
+        const reason = buildReason(rule, rule.model, model, complexity)
         console.log(
           `[router] Rule "${rule.name}" matched (complexity=${complexity}) → ${model}`
         )
-        return model
+        return { model, reason }
       }
     }
   }
 
-  const defaultModel = config.models[config.defaultModel]
+  const defaultModel = config.models[config.defaultModel]!
+  const reason = buildReason(null, config.defaultModel, defaultModel, complexity)
   console.log(`[router] No rule matched → default ${defaultModel}`)
-  return defaultModel
+  return { model: defaultModel, reason }
 }

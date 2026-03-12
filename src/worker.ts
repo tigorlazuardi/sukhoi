@@ -52,8 +52,8 @@ export async function processJob(job: Job): Promise<void> {
   console.log(`[worker] State → In Progress`)
 
   // ── Route model ────────────────────────────────────────────────────────────
-  const model = await routeModel(issue, config)
-  console.log(`[worker] Model: ${model}`)
+  const { model, reason: modelReason } = await routeModel(issue, config)
+  console.log(`[worker] Model: ${model} — ${modelReason}`)
 
   // ── Build prompt ───────────────────────────────────────────────────────────
   const prompt = buildPrompt(config, issue)
@@ -84,6 +84,7 @@ export async function processJob(job: Job): Promise<void> {
     OPENROUTER_API_KEY:  env.openrouterApiKey,
     WORKLOG_ENABLED:     String(config.worklog?.enabled ?? false),
     WORKLOG_MAX_ENTRIES: String(config.worklog?.maxEntries ?? 20),
+    MODEL_REASON:        modelReason,
     RESULT_DIR:          resultDir,
     REPO_CACHE_DIR:      REPO_CACHE_DIR,
   }
@@ -121,11 +122,14 @@ export async function processJob(job: Job): Promise<void> {
 
   // Read result.json written by entrypoint.sh
   let runnerResult: RunnerResult = {
-    pr_url:     null,
-    commit_url: null,
-    commit_sha: null,
-    branch:     null,
-    skipped:    false,
+    pr_url:       null,
+    commit_url:   null,
+    commit_sha:   null,
+    branch:       null,
+    model:        model,
+    model_reason: modelReason,
+    skipped:      false,
+    usage:        null,
   }
 
   try {
@@ -145,9 +149,11 @@ export async function processJob(job: Job): Promise<void> {
   // ── Post comment on Plane issue ────────────────────────────────────────────
   const comment = buildPlaneComment(
     issue,
-    model,
+    runnerResult.model ?? model,
+    runnerResult.model_reason ?? modelReason,
     runnerResult.pr_url,
-    runnerResult.commit_url
+    runnerResult.commit_url,
+    runnerResult.usage,
   )
   await addComment(projectId, issueId, comment)
   console.log(`[worker] Comment posted on ${issueLabel}`)

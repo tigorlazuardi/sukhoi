@@ -80,10 +80,21 @@ export interface Job {
 
 // ── Runner result ────────────────────────────────────────────────────────────
 
+export interface RunnerUsage {
+  cost_usd: number
+  tokens_input: number
+  tokens_output: number
+  tokens_cache_read: number
+  tokens_cache_write: number
+}
+
 export interface RunnerResult {
   pr_url: string | null
   commit_url: string | null
   commit_sha: string | null
   branch: string | null
+  model: string | null
+  model_reason: string | null
   skipped: boolean
+  usage: RunnerUsage | null
 }

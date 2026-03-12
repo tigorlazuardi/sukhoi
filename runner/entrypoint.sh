@@ -14,6 +14,7 @@ set -euo pipefail
 #   REPO_CACHE_DIR      - Persistent repo cache directory (volume mount)
 #   WORKLOG_ENABLED     - "true" to enable persistent work log (default: "false")
 #   WORKLOG_MAX_ENTRIES - Max entries to keep in worklog (default: 20)
+#   MODEL_REASON        - Human-readable reason why this model was selected
 #
 # Optional env vars:
 #   OPENCODE_CONFIG_PATH - Host path to opencode config file (MCP servers, etc.)
@@ -102,10 +103,41 @@ fi
 
 # ── 8. Run OpenCode agent ────────────────────────────────────────────────────
 echo "[sukhoi-runner] Running OpenCode with model: $MODEL"
+OPENCODE_OUTPUT=$(mktemp)
+
 opencode run \
   --model "$MODEL" \
-  --print \
-  "$PROMPT"
+  --format json \
+  "$PROMPT" | tee "$OPENCODE_OUTPUT"
+
+# ── Parse usage from JSON event stream ───────────────────────────────────────
+# Aggregate all step_finish events: sum cost + tokens
+USAGE_JSON=$(node -e "
+const fs = require('fs');
+const lines = fs.readFileSync('$OPENCODE_OUTPUT', 'utf8').trim().split('\n');
+let totalCost = 0, inputTokens = 0, outputTokens = 0, cacheRead = 0, cacheWrite = 0;
+for (const line of lines) {
+  try {
+    const ev = JSON.parse(line);
+    if (ev.type === 'step_finish' && ev.part) {
+      totalCost += ev.part.cost ?? 0;
+      inputTokens += ev.part.tokens?.input ?? 0;
+      outputTokens += ev.part.tokens?.output ?? 0;
+      cacheRead += ev.part.tokens?.cache?.read ?? 0;
+      cacheWrite += ev.part.tokens?.cache?.write ?? 0;
+    }
+  } catch {}
+}
+console.log(JSON.stringify({
+  cost_usd: Math.round(totalCost * 1e6) / 1e6,
+  tokens_input: inputTokens,
+  tokens_output: outputTokens,
+  tokens_cache_read: cacheRead,
+  tokens_cache_write: cacheWrite,
+}));
+")
+rm -f "$OPENCODE_OUTPUT"
+echo "[sukhoi-runner] Usage: $USAGE_JSON"
 
 # ── 9. Verify typecheck ──────────────────────────────────────────────────────
 echo "[sukhoi-runner] Running typecheck..."
@@ -116,7 +148,15 @@ git add -A
 
 if git diff --cached --quiet; then
   echo "[sukhoi-runner] No changes to commit. Exiting."
-  echo '{"pr_url": null, "commit_url": null, "skipped": true}' > "$RESULT_FILE"
+  node -e "
+const result = {
+  pr_url: null, commit_url: null, commit_sha: null, branch: '${BRANCH_NAME}',
+  model: '${MODEL}', model_reason: process.env.MODEL_REASON || '',
+  skipped: true,
+  usage: ${USAGE_JSON},
+};
+require('fs').writeFileSync('${RESULT_FILE}', JSON.stringify(result, null, 2));
+" MODEL_REASON="$MODEL_REASON"
   cd "$CACHE_DIR"
   git worktree remove --force "$WORKTREE_DIR"
   git branch -D "$BRANCH_NAME"
@@ -194,14 +234,20 @@ cd "$CACHE_DIR"
 git worktree remove --force "$WORKTREE_DIR"
 
 # ── 15. Write result for sukhoi service ──────────────────────────────────────
-cat > "$RESULT_FILE" <<EOF
-{
-  "pr_url": "$PR_URL",
-  "commit_url": "$COMMIT_URL",
-  "commit_sha": "$COMMIT_SHA",
-  "branch": "$BRANCH_NAME",
-  "skipped": false
-}
-EOF
+# Merge usage JSON into result — node handles the merge cleanly
+node -e "
+const usage = ${USAGE_JSON};
+const result = {
+  pr_url: '${PR_URL}',
+  commit_url: '${COMMIT_URL}',
+  commit_sha: '${COMMIT_SHA}',
+  branch: '${BRANCH_NAME}',
+  model: '${MODEL}',
+  model_reason: process.env.MODEL_REASON || '',
+  skipped: false,
+  usage,
+};
+require('fs').writeFileSync('${RESULT_FILE}', JSON.stringify(result, null, 2));
+" MODEL_REASON="$MODEL_REASON"
 
 echo "[sukhoi-runner] Done."
