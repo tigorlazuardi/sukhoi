@@ -22,8 +22,9 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 # Wrangler (Cloudflare)
 RUN npm install -g wrangler
 
-# OpenCode CLI
-RUN npm install -g opencode-ai
+# OpenCode CLI — pin to specific version when OPENCODE_VERSION build arg is provided
+ARG OPENCODE_VERSION=latest
+RUN npm install -g opencode-ai@${OPENCODE_VERSION}
 
 WORKDIR /workspace
 COPY entrypoint.sh /entrypoint.sh

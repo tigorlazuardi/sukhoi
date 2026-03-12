@@ -1,0 +1,151 @@
+name: Update runner on new opencode release
+
+on:
+  schedule:
+    # Run daily at 06:00 UTC
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force rebuild even if version has not changed"
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  RUNNER_IMAGE_NAME: ${{ github.repository }}-runner
+
+jobs:
+  check-and-rebuild:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── Fetch latest opencode version from npm registry ──────────────────────
+
+      - name: Get latest opencode version
+        id: opencode
+        run: |
+          VERSION=$(curl -sf https://registry.npmjs.org/opencode-ai/latest | jq -r '.version')
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "Failed to fetch opencode version from npm registry"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Latest opencode version: $VERSION"
+
+      # ── Compare with last known version (stored in GHA cache) ────────────────
+
+      - name: Restore cached version
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .opencode-version
+          key: opencode-version-${{ steps.opencode.outputs.version }}
+          # Restore any previous version cache for comparison
+          restore-keys: opencode-version-
+
+      - name: Check if rebuild is needed
+        id: should-rebuild
+        run: |
+          LATEST="${{ steps.opencode.outputs.version }}"
+          FORCE="${{ inputs.force }}"
+
+          if [ "$FORCE" = "true" ]; then
+            echo "Force rebuild requested."
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -f .opencode-version ]; then
+            CACHED=$(cat .opencode-version)
+            echo "Cached version: $CACHED"
+            if [ "$CACHED" = "$LATEST" ]; then
+              echo "opencode $LATEST already built. Skipping."
+              echo "rebuild=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "New version detected: $CACHED → $LATEST"
+          else
+            echo "No cached version found. First run — rebuilding."
+          fi
+
+          echo "rebuild=true" >> "$GITHUB_OUTPUT"
+
+      # ── Rebuild & push sukhoi-runner ─────────────────────────────────────────
+
+      - name: Log in to GHCR
+        if: steps.should-rebuild.outputs.rebuild == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        if: steps.should-rebuild.outputs.rebuild == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract metadata for sukhoi-runner
+        if: steps.should-rebuild.outputs.rebuild == 'true'
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.RUNNER_IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=opencode-${{ steps.opencode.outputs.version }}
+
+      - name: Build and push sukhoi-runner
+        if: steps.should-rebuild.outputs.rebuild == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: runner
+          dockerfile: runner/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            OPENCODE_VERSION=${{ steps.opencode.outputs.version }}
+          cache-from: type=gha,scope=sukhoi-runner
+          cache-to: type=gha,mode=max,scope=sukhoi-runner
+          platforms: linux/amd64,linux/arm64
+
+      # ── Save new version to cache ─────────────────────────────────────────────
+
+      - name: Save version to cache
+        if: steps.should-rebuild.outputs.rebuild == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .opencode-version
+          key: opencode-version-${{ steps.opencode.outputs.version }}
+
+      - name: Write version file
+        if: steps.should-rebuild.outputs.rebuild == 'true'
+        run: echo "${{ steps.opencode.outputs.version }}" > .opencode-version
+
+      # ── Summary ──────────────────────────────────────────────────────────────
+
+      - name: Summary (rebuilt)
+        if: steps.should-rebuild.outputs.rebuild == 'true'
+        run: |
+          echo "## sukhoi-runner rebuilt" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**opencode version:** \`${{ steps.opencode.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags pushed:**" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Summary (skipped)
+        if: steps.should-rebuild.outputs.rebuild == 'false'
+        run: |
+          echo "## No rebuild needed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "opencode \`${{ steps.opencode.outputs.version }}\` is already the latest built version." >> $GITHUB_STEP_SUMMARY
