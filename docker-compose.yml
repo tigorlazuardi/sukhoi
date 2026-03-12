@@ -1,5 +1,11 @@
 services:
   sukhoi:
+    # Use pre-built GHCR image:
+    #   SUKHOI_IMAGE=ghcr.io/your-org/sukhoi:latest docker compose up -d
+    #
+    # Build locally (default):
+    #   docker compose up -d --build
+    image: ${SUKHOI_IMAGE:-}
     build:
       context: .
       dockerfile: Dockerfile
