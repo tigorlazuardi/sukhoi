@@ -1,3 +1,15 @@
+FROM node:22-slim AS builder
+
+WORKDIR /app
+
+COPY package.json ./
+RUN npm install
+
+COPY tsconfig.json ./
+COPY src/ ./src/
+RUN npm run build
+
+# ── Runtime image ─────────────────────────────────────────────────────────────
 FROM node:22-slim
 
 WORKDIR /app
@@ -5,10 +17,7 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev
 
-COPY tsconfig.json ./
-COPY src/ ./src/
-RUN npm run build
-
+COPY --from=builder /app/dist ./dist
 COPY sukhoi.config.json ./
 
 ENV NODE_ENV=production

@@ -66,7 +66,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          dockerfile: Dockerfile
+          file: Dockerfile
           push: true
           tags: ${{ steps.meta-sukhoi.outputs.tags }}
           labels: ${{ steps.meta-sukhoi.outputs.labels }}
@@ -80,7 +80,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: runner
-          dockerfile: runner/Dockerfile
+          file: runner/Dockerfile
           push: true
           tags: ${{ steps.meta-runner.outputs.tags }}
           labels: ${{ steps.meta-runner.outputs.labels }}
