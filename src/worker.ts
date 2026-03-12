@@ -8,8 +8,8 @@ import { buildPlaneComment, buildPrBody, buildPrompt } from './prompt.js'
 import { routeModel } from './router.js'
 import type { Job, RunnerResult } from './types.js'
 
-const RUNNER_IMAGE = process.env['RUNNER_IMAGE'] ?? 'sukhoi-runner:latest'
-const REPO_CACHE_VOLUME = 'sukhoi-repos'
+const ENTRYPOINT = process.env['ENTRYPOINT'] ?? '/runner/entrypoint.sh'
+const REPO_CACHE_DIR = process.env['REPO_CACHE_DIR'] ?? '/repo-cache'
 
 /**
  * Convert a repo URL (SSH or HTTPS) to an authenticated HTTPS URL.
@@ -63,47 +63,44 @@ export async function processJob(job: Job): Promise<void> {
   // ── Authenticated repo URL (HTTPS token-based, no SSH key needed) ──────────
   const repoUrl = buildAuthenticatedRepoUrl(config.repo, env.githubToken)
 
-  // ── Prepare result dir (mounted from host into container) ──────────────────
+  // ── Prepare result dir (temp dir on local filesystem) ─────────────────────
   const resultDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sukhoi-'))
   const resultFile = path.join(resultDir, 'result.json')
 
-  // ── Spawn Docker container ─────────────────────────────────────────────────
-  const dockerArgs = [
-    'run',
-    '--rm',
-    // Mount result dir so we can read result.json after container exits
-    '--volume', `${resultDir}:/workspace`,
-    // Persistent repo cache volume (shared across all runner containers)
-    '--volume', `${REPO_CACHE_VOLUME}:/repo-cache`,
-    // Optional: mount user-provided opencode config (MCP servers, model settings, etc.)
-    // Must be a host path since runner containers are spawned directly by Docker daemon.
-    ...(env.opencodeConfigHostPath
-      ? ['--volume', `${env.opencodeConfigHostPath}:/root/.config/opencode/config.json:ro`]
-      : []),
-    // Pass all env vars
-    '--env', `GITHUB_TOKEN=${env.githubToken}`,
-    '--env', `REPO_URL=${repoUrl}`,
-    '--env', `BASE_BRANCH=${config.baseBranch}`,
-    '--env', `BRANCH_NAME=${branchName}`,
-    '--env', `ISSUE_ID=${issueLabel}`,
-    '--env', `ISSUE_TITLE=${issue.name}`,
-    '--env', `MODEL=${model}`,
-    '--env', `PROMPT=${prompt}`,
-    '--env', `PR_BODY=${prBody}`,
-    '--env', `ANTHROPIC_API_KEY=${env.anthropicApiKey}`,
-    '--env', `OPENAI_API_KEY=${env.openaiApiKey}`,
-    '--env', `OPENROUTER_API_KEY=${env.openrouterApiKey}`,
-    '--env', `WORKLOG_ENABLED=${config.worklog?.enabled ?? false}`,
-    '--env', `WORKLOG_MAX_ENTRIES=${config.worklog?.maxEntries ?? 20}`,
-    RUNNER_IMAGE,
-  ]
+  // ── Build env for entrypoint.sh ───────────────────────────────────────────
+  const runnerEnv: Record<string, string> = {
+    ...process.env as Record<string, string>,
+    GITHUB_TOKEN:        env.githubToken,
+    REPO_URL:            repoUrl,
+    BASE_BRANCH:         config.baseBranch,
+    BRANCH_NAME:         branchName,
+    ISSUE_ID:            issueLabel,
+    ISSUE_TITLE:         issue.name,
+    MODEL:               model,
+    PROMPT:              prompt,
+    PR_BODY:             prBody,
+    ANTHROPIC_API_KEY:   env.anthropicApiKey,
+    OPENAI_API_KEY:      env.openaiApiKey,
+    OPENROUTER_API_KEY:  env.openrouterApiKey,
+    WORKLOG_ENABLED:     String(config.worklog?.enabled ?? false),
+    WORKLOG_MAX_ENTRIES: String(config.worklog?.maxEntries ?? 20),
+    RESULT_DIR:          resultDir,
+    REPO_CACHE_DIR:      REPO_CACHE_DIR,
+  }
 
-  console.log(`[worker] Running docker container with model ${model}...`)
+  // If user provided an opencode config, expose its path to the entrypoint
+  if (env.opencodeConfigHostPath) {
+    runnerEnv['OPENCODE_CONFIG_PATH'] = env.opencodeConfigHostPath
+  }
 
-  const result = spawnSync('docker', dockerArgs, {
+  console.log(`[worker] Running entrypoint for ${issueLabel} with model ${model}...`)
+
+  // ── Run entrypoint.sh directly as a subprocess ────────────────────────────
+  const result = spawnSync('bash', [ENTRYPOINT], {
     timeout: env.jobTimeoutMs,
-    stdio: 'inherit',
+    stdio:   'inherit',
     encoding: 'utf-8',
+    env: runnerEnv,
   })
 
   // ── Handle result ──────────────────────────────────────────────────────────
@@ -116,20 +113,19 @@ export async function processJob(job: Job): Promise<void> {
     await addComment(
       projectId,
       issueId,
-      `**Sukhoi agent failed for BOOTH9-${issue.sequence_id}.**\n\nError: \`${errMsg}\`\n\nTask has been returned to Todo. Please review and retry.`
+      `**Sukhoi agent failed for ${issueLabel}.**\n\nError: \`${errMsg}\`\n\nTask has been returned to Todo. Please review and retry.`
     )
-    // Clean up temp dir
     fs.rmSync(resultDir, { recursive: true, force: true })
     return
   }
 
   // Read result.json written by entrypoint.sh
   let runnerResult: RunnerResult = {
-    pr_url: null,
+    pr_url:     null,
     commit_url: null,
     commit_sha: null,
-    branch: null,
-    skipped: false,
+    branch:     null,
+    skipped:    false,
   }
 
   try {

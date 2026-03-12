@@ -139,8 +139,7 @@ export const env = {
   get port() { return parseInt(process.env['PORT'] ?? '3000', 10) },
   get concurrency() { return parseInt(process.env['CONCURRENCY'] ?? '1', 10) },
   get jobTimeoutMs() { return parseInt(process.env['JOB_TIMEOUT_MS'] ?? '600000', 10) },
-  // Optional: host path to an opencode config file (e.g. /home/user/opencode.json).
-  // When set, the file is mounted into runner containers so OpenCode picks it up.
-  // Must be a host path (not container path) because runners are spawned via docker run.
+  // Optional: path to an opencode config file inside the container.
+  // When set, the file is copied to ~/.config/opencode/config.json before each job.
   get opencodeConfigHostPath() { return process.env['OPENCODE_CONFIG_HOST_PATH'] ?? '' },
 }

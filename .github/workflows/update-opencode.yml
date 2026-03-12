@@ -1,4 +1,4 @@
-name: Update runner on new opencode release
+name: Update on new opencode release
 
 on:
   schedule:
@@ -13,7 +13,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  RUNNER_IMAGE_NAME: ${{ github.repository }}-runner
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   check-and-rebuild:
@@ -47,7 +47,6 @@ jobs:
         with:
           path: .opencode-version
           key: opencode-version-${{ steps.opencode.outputs.version }}
-          # Restore any previous version cache for comparison
           restore-keys: opencode-version-
 
       - name: Check if rebuild is needed
@@ -77,7 +76,7 @@ jobs:
 
           echo "rebuild=true" >> "$GITHUB_OUTPUT"
 
-      # ── Rebuild & push sukhoi-runner ─────────────────────────────────────────
+      # ── Rebuild & push sukhoi ─────────────────────────────────────────────────
 
       - name: Log in to GHCR
         if: steps.should-rebuild.outputs.rebuild == 'true'
@@ -91,29 +90,29 @@ jobs:
         if: steps.should-rebuild.outputs.rebuild == 'true'
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract metadata for sukhoi-runner
+      - name: Extract metadata for sukhoi
         if: steps.should-rebuild.outputs.rebuild == 'true'
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.RUNNER_IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
             type=raw,value=opencode-${{ steps.opencode.outputs.version }}
 
-      - name: Build and push sukhoi-runner
+      - name: Build and push sukhoi
         if: steps.should-rebuild.outputs.rebuild == 'true'
         uses: docker/build-push-action@v6
         with:
-          context: runner
-          dockerfile: runner/Dockerfile
+          context: .
+          file: Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             OPENCODE_VERSION=${{ steps.opencode.outputs.version }}
-          cache-from: type=gha,scope=sukhoi-runner
-          cache-to: type=gha,mode=max,scope=sukhoi-runner
+          cache-from: type=gha,scope=sukhoi
+          cache-to: type=gha,mode=max,scope=sukhoi
           platforms: linux/amd64,linux/arm64
 
       # ── Save new version to cache ─────────────────────────────────────────────
@@ -134,7 +133,7 @@ jobs:
       - name: Summary (rebuilt)
         if: steps.should-rebuild.outputs.rebuild == 'true'
         run: |
-          echo "## sukhoi-runner rebuilt" >> $GITHUB_STEP_SUMMARY
+          echo "## sukhoi rebuilt" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**opencode version:** \`${{ steps.opencode.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

@@ -1,7 +1,7 @@
 services:
   sukhoi:
     # Use pre-built GHCR image:
-    #   SUKHOI_IMAGE=ghcr.io/your-org/sukhoi:latest docker compose up -d
+    #   SUKHOI_IMAGE=ghcr.io/tigorlazuardi/sukhoi:latest docker compose up -d
     #
     # Build locally (default):
     #   docker compose up -d --build
@@ -14,14 +14,13 @@ services:
     env_file:
       - .env
     volumes:
-      # Mount Docker socket so sukhoi can spawn runner containers
-      - /var/run/docker.sock:/var/run/docker.sock
       # Mount config for hot reload without rebuild
       - ./sukhoi.config.json:/app/sukhoi.config.json:ro
+      # Persistent repo cache — shared across all job runs
+      - sukhoi-repos:/repo-cache
     restart: unless-stopped
 
 volumes:
-  # Persistent repo cache shared across all runner containers.
-  # Runner containers mount this as /repo-cache via --volume sukhoi-repos:/repo-cache.
-  # Prevents full re-clone on every task — git fetch + reset instead.
+  # Persistent repo cache: avoids full re-clone on every task.
+  # entrypoint.sh does git fetch + reset --hard instead.
   sukhoi-repos:
