@@ -75,6 +75,11 @@ export async function processJob(job: Job): Promise<void> {
     '--volume', `${resultDir}:/workspace`,
     // Persistent repo cache volume (shared across all runner containers)
     '--volume', `${REPO_CACHE_VOLUME}:/repo-cache`,
+    // Optional: mount user-provided opencode config (MCP servers, model settings, etc.)
+    // Must be a host path since runner containers are spawned directly by Docker daemon.
+    ...(env.opencodeConfigHostPath
+      ? ['--volume', `${env.opencodeConfigHostPath}:/root/.config/opencode/config.json:ro`]
+      : []),
     // Pass all env vars
     '--env', `GITHUB_TOKEN=${env.githubToken}`,
     '--env', `REPO_URL=${repoUrl}`,

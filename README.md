@@ -100,7 +100,37 @@ Then edit `sukhoi.config.json` to point to your repo and define your routing rul
 > **Note:** If the file is missing, the container will fail to start with a clear error message.
 > The config is hot-reloaded — changes take effect immediately without restarting the service.
 
-### 5. Start the service
+### 5. (Optional) Configure OpenCode
+
+If you want to pass MCP servers, custom model settings, or other OpenCode configuration to the runner, create an `opencode.json` file on your host:
+
+```jsonc
+{
+  "mcp": {
+    "servers": {
+      "my-db": {
+        "type": "local",
+        "command": ["npx", "-y", "@modelcontextprotocol/server-postgres"],
+        "env": {
+          "DATABASE_URL": "postgres://user:pass@host/db"
+        }
+      }
+    }
+  }
+}
+```
+
+Then set its **absolute host path** in `.env`:
+
+```bash
+OPENCODE_CONFIG_HOST_PATH=/home/youruser/opencode.json
+```
+
+The file is mounted read-only into each runner container at `/root/.config/opencode/config.json`. It is never copied into the Sukhoi image — changes take effect on the next job without any restart.
+
+> **Note:** This must be a host path, not a path inside the Sukhoi container, because runner containers are spawned directly by the Docker daemon.
+
+### 6. Start the service
 
 ```bash
 docker compose up -d
@@ -112,7 +142,7 @@ Check logs:
 docker compose logs -f sukhoi
 ```
 
-### 6. Expose via reverse proxy (HTTPS required by Plane)
+### 7. Expose via reverse proxy (HTTPS required by Plane)
 
 Plane webhooks require a publicly accessible HTTPS URL. Using Caddy:
 
@@ -144,7 +174,7 @@ server {
 }
 ```
 
-### 7. Register the webhook in Plane
+### 8. Register the webhook in Plane
 
 1. Plane → **Settings** → **Webhooks** → **Add webhook**
 2. URL: `https://sukhoi.yourdomain.com/webhook`
