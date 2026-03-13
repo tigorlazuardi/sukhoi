@@ -8,8 +8,16 @@ export interface RouteResult {
   complexity: ClassifyResult | null  // classifier output if used, null otherwise
 }
 
-function ruleNeedsComplexity(rules: RoutingRule[]): boolean {
-  return rules.some((r) => r.match.complexity && r.match.complexity.length > 0)
+function ruleNeedsComplexity(rules: RoutingRule[], issue: PlaneIssue): boolean {
+  return rules.some((r) => {
+    if (!r.match.complexity || r.match.complexity.length === 0) return false
+    // If rule has labels and the issue matches those labels, complexity is not needed
+    if (r.match.labels && r.match.labels.length > 0) {
+      const labelMatched = issue.labels.some((l) => r.match.labels!.includes(l.name))
+      if (labelMatched) return false
+    }
+    return true
+  })
 }
 
 function matchesRule(
@@ -80,11 +88,18 @@ export async function routeModel(
 ): Promise<RouteResult> {
   let classified: ClassifyResult | null = null
 
-  // First pass: try to match rules that don't need complexity (no LLM call)
+  // First pass: match rules that don't need complexity classification.
+  // A rule with complexity is still skippable if its labels already match
+  // (label match implies user intent → no need to classify).
   for (const rule of config.routing) {
-    const needsComplexity =
-      rule.match.complexity && rule.match.complexity.length > 0
-    if (needsComplexity) continue
+    const hasComplexity = rule.match.complexity && rule.match.complexity.length > 0
+    const hasLabels = rule.match.labels && rule.match.labels.length > 0
+    const labelMatched = hasLabels && issue.labels.some((l) => rule.match.labels!.includes(l.name))
+
+    // Skip classifier if rule has no complexity requirement,
+    // OR if rule has both labels+complexity but label already matched
+    const skipClassifier = !hasComplexity || (hasComplexity && labelMatched)
+    if (!skipClassifier) continue
 
     if (matchesRule(rule, issue, null)) {
       const model = config.models[rule.model]!
@@ -94,8 +109,8 @@ export async function routeModel(
     }
   }
 
-  // Second pass: if any rules need complexity, classify once then evaluate all
-  if (ruleNeedsComplexity(config.routing)) {
+  // Second pass: if any remaining rules need complexity, classify once then evaluate all
+  if (ruleNeedsComplexity(config.routing, issue)) {
     classified = await classifyComplexity(issue, config)
 
     for (const rule of config.routing) {
