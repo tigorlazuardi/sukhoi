@@ -97,7 +97,7 @@ cd "$WORKTREE_DIR"
 
 # ── 6. Install dependencies ──────────────────────────────────────────────────
 echo "[sukhoi-runner] Installing dependencies..."
-pnpm install --frozen-lockfile
+NODE_ENV= pnpm install --frozen-lockfile
 
 # ── 7. Inject worklog into worktree (read-only context for OpenCode) ─────────
 if [ "$WORKLOG_ENABLED" = "true" ] && [ -f "$WORKLOG_CACHE" ]; then
