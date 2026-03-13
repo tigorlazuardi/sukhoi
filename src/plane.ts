@@ -8,24 +8,41 @@ function baseUrl(): string {
 async function request<T>(
   method: string,
   path: string,
-  body?: unknown
+  body?: unknown,
+  retries = 3,
+  delayMs = 1000,
 ): Promise<T> {
   const url = `${baseUrl()}${path}`
-  const res = await fetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-API-Key': env.planeApiKey,
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  let lastError: Error | undefined
 
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Plane API ${method} ${url} → ${res.status}: ${text}`)
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': env.planeApiKey,
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      })
+
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(`Plane API ${method} ${url} → ${res.status}: ${text}`)
+      }
+
+      if (res.status === 204) return undefined as T
+      return res.json() as Promise<T>
+    } catch (err) {
+      lastError = err as Error
+      if (attempt < retries) {
+        console.warn(`[plane] Request failed (attempt ${attempt}/${retries}): ${lastError.message} — retrying in ${delayMs}ms`)
+        await new Promise((r) => setTimeout(r, delayMs * attempt))
+      }
+    }
   }
 
-  return res.json() as Promise<T>
+  throw lastError
 }
 
 // ── States ───────────────────────────────────────────────────────────────────
