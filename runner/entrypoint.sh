@@ -168,10 +168,16 @@ require('fs').writeFileSync('${RESULT_FILE}', JSON.stringify(result, null, 2));
   exit 0
 fi
 
+# ── Collect diff stat for commit message and PR body ─────────────────────────
+DIFF_STAT=$(git diff --cached --stat | head -50)
+
 git commit -m "fix: resolve $ISSUE_ID
 
 Automated implementation by Sukhoi agent.
-Model: $MODEL"
+Model: $MODEL
+
+Changes:
+${DIFF_STAT}"
 
 # ── 11. Push branch ──────────────────────────────────────────────────────────
 echo "[sukhoi-runner] Pushing branch..."
@@ -197,7 +203,11 @@ This PR was automatically implemented by [Sukhoi](https://github.com/tigorlazuar
 
 **Model:** \`${MODEL}\`
 **Branch:** \`${BRANCH_NAME}\`
-**Commit:** ${COMMIT_URL}"
+**Commit:** ${COMMIT_URL}
+
+\`\`\`
+${DIFF_STAT}
+\`\`\`"
 
 PR_URL=$(gh pr create \
   --title "fix: ${ISSUE_TITLE}" \
@@ -251,10 +261,11 @@ const result = {
   model_reason: process.env.MODEL_REASON || '',
   complexity: process.env.COMPLEXITY || null,
   complexity_reason: process.env.COMPLEXITY_REASON || null,
+  diff_stat: process.env.DIFF_STAT || null,
   skipped: false,
   usage,
 };
 require('fs').writeFileSync('${RESULT_FILE}', JSON.stringify(result, null, 2));
-" MODEL_REASON="$MODEL_REASON" COMPLEXITY="$COMPLEXITY" COMPLEXITY_REASON="$COMPLEXITY_REASON"
+" MODEL_REASON="$MODEL_REASON" COMPLEXITY="$COMPLEXITY" COMPLEXITY_REASON="$COMPLEXITY_REASON" DIFF_STAT="$DIFF_STAT"
 
 echo "[sukhoi-runner] Done."

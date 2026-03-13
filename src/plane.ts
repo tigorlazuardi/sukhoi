@@ -1,3 +1,4 @@
+import { marked } from 'marked'
 import { env } from './config.js'
 import type { PlaneIssue, PlaneState } from './types.js'
 
@@ -106,16 +107,6 @@ export async function addComment(
   })
 }
 
-// Minimal markdown → HTML for basic comment formatting
 function markdownToHtml(md: string): string {
-  return md
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>')
-    .split('\n')
-    .map((line) => `<p>${line}</p>`)
-    .join('\n')
+  return marked(md, { async: false }) as string
 }

@@ -159,6 +159,7 @@ export async function processJob(job: Job): Promise<void> {
     model_reason:      modelReason,
     complexity:        classified?.result ?? null,
     complexity_reason: classified?.reason ?? null,
+    diff_stat:         null,
     skipped:           false,
     usage:             null,
   }
@@ -183,6 +184,7 @@ export async function processJob(job: Job): Promise<void> {
     runnerResult.pr_url,
     runnerResult.commit_url,
     runnerResult.usage,
+    runnerResult.diff_stat ?? null,
   )
   await addComment(projectId, issueId, comment)
   console.log(`[worker] Comment posted on ${issueLabel}`)

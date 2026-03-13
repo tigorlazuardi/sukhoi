@@ -10,6 +10,8 @@ const DEFAULT_PROMPT =
   'You are an autonomous coding agent. You are given a task from a project management system.\n\n' +
   'Read AGENTS.md or CLAUDE.md at the repo root if present — follow any project-specific instructions there.\n\n' +
   'Implement the task. Only modify files relevant to the task. Follow existing code style and conventions.\n\n' +
+  'When committing, write a clear and detailed commit message that lists the actual changes made ' +
+  '(files created, modified, deleted) and briefly explains what was changed and why.\n\n' +
   'The task will be provided below with its full context.'
 
 function validate(raw: unknown): SukhoiConfig {

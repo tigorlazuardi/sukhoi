@@ -99,6 +99,7 @@ export function buildPlaneComment(
   prUrl: string | null,
   commitUrl: string | null,
   usage: RunnerUsage | null,
+  diffStat: string | null,
 ): string {
   const lines = [
     `**Sukhoi agent completed BOOTH9-${issue.sequence_id}.**`,
@@ -113,6 +114,14 @@ export function buildPlaneComment(
   }
   if (!prUrl && !commitUrl) {
     lines.push('No changes were made.')
+  }
+
+  if (diffStat) {
+    lines.push('')
+    lines.push('**Changes:**')
+    lines.push('```')
+    lines.push(diffStat)
+    lines.push('```')
   }
 
   if (usage) {
