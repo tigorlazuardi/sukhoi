@@ -99,29 +99,35 @@ export function buildPlaneComment(
   prUrl: string | null,
   commitUrl: string | null,
   usage: RunnerUsage | null,
-  diffStat: string | null,
+  summary: string | null,
+  skipped: boolean,
 ): string {
   const lines = [
     `**Sukhoi agent completed BOOTH9-${issue.sequence_id}.**`,
     '',
   ]
 
-  if (prUrl) {
-    lines.push(`**Pull Request:** [${prUrl}](${prUrl})`)
-  }
-  if (commitUrl) {
-    lines.push(`**Commit:** [${commitUrl.split('/').pop()}](${commitUrl})`)
-  }
-  if (!prUrl && !commitUrl) {
-    lines.push('No changes were made.')
-  }
-
-  if (diffStat) {
-    lines.push('')
-    lines.push('**Changes:**')
-    lines.push('```')
-    lines.push(diffStat)
-    lines.push('```')
+  if (skipped) {
+    lines.push('_No changes were committed._')
+    if (summary) {
+      lines.push('')
+      lines.push('## Why no changes?')
+      lines.push('')
+      lines.push(summary)
+    }
+  } else {
+    if (prUrl) {
+      lines.push(`**Pull Request:** [${prUrl}](${prUrl})`)
+    }
+    if (commitUrl) {
+      lines.push(`**Commit:** [${commitUrl.split('/').pop()}](${commitUrl})`)
+    }
+    if (summary) {
+      lines.push('')
+      lines.push('## Changes')
+      lines.push('')
+      lines.push(summary)
+    }
   }
 
   if (usage) {

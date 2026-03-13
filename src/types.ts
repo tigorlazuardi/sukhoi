@@ -110,6 +110,7 @@ export interface RunnerResult {
   complexity: string | null
   complexity_reason: string | null
   diff_stat: string | null
+  summary: string | null
   skipped: boolean
   usage: RunnerUsage | null
 }

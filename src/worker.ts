@@ -108,11 +108,12 @@ export async function processJob(job: Job): Promise<void> {
 
   // ── Run entrypoint.sh, tee output to log file for error capture ───────────
   const logFile = path.join(resultDir, 'runner.log')
+  const summaryFile = path.join(resultDir, 'summary.md')
   const result = spawnSync('bash', [ENTRYPOINT], {
     timeout: env.jobTimeoutMs,
     stdio:   'inherit',
     encoding: 'utf-8',
-    env: { ...runnerEnv, LOG_FILE: logFile },
+    env: { ...runnerEnv, LOG_FILE: logFile, SUMMARY_FILE: summaryFile },
   })
 
   // ── Handle result ──────────────────────────────────────────────────────────
@@ -160,6 +161,7 @@ export async function processJob(job: Job): Promise<void> {
     complexity:        classified?.result ?? null,
     complexity_reason: classified?.reason ?? null,
     diff_stat:         null,
+    summary:           null,
     skipped:           false,
     usage:             null,
   }
@@ -169,6 +171,13 @@ export async function processJob(job: Job): Promise<void> {
     runnerResult = JSON.parse(raw) as RunnerResult
   } catch {
     console.warn('[worker] Could not read result.json, continuing anyway')
+  }
+
+  // Read summary.md written by LLM (may not exist)
+  try {
+    runnerResult.summary = fs.readFileSync(summaryFile, 'utf-8').trim()
+  } catch {
+    // summary is optional
   }
 
   fs.rmSync(resultDir, { recursive: true, force: true })
@@ -184,7 +193,8 @@ export async function processJob(job: Job): Promise<void> {
     runnerResult.pr_url,
     runnerResult.commit_url,
     runnerResult.usage,
-    runnerResult.diff_stat ?? null,
+    runnerResult.summary ?? null,
+    runnerResult.skipped,
   )
   await addComment(projectId, issueId, comment)
   console.log(`[worker] Comment posted on ${issueLabel}`)
