@@ -62,10 +62,18 @@ export interface WorklogConfig {
   maxEntries: number // how many recent entries to keep on disk
 }
 
+export interface StateNames {
+  todo: string        // state to watch for triggering agent
+  inProgress: string  // state to set when agent starts
+  done: string        // state to set when agent succeeds
+  failed: string      // state to set when agent fails (must NOT be todo to avoid loop)
+}
+
 export interface SukhoiConfig {
   repo: string
   baseBranch: string
   prompt: string
+  states: StateNames
   classifier: ClassifierConfig
   models: Record<string, string> // alias → "provider/model"
   routing: RoutingRule[]

@@ -50,6 +50,13 @@
 
   "defaultModel": "sonnet",
 
+  "states": {
+    "todo":       "Todo",
+    "inProgress": "In Progress",
+    "done":       "Review/Testing",
+    "failed":     "Cancelled"
+  },
+
   "worklog": {
     "enabled": true,
     "maxEntries": 20

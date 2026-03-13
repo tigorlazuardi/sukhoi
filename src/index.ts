@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   // ── Discover Todo state UUID from Plane ────────────────────────────────────
   const projectId = env.planeProjectId
   try {
-    const todoId = await getStateId(projectId, 'Todo')
+    const todoId = await getStateId(projectId, config.states.todo)
     setTodoStateId(todoId)
   } catch (err) {
     console.error('[sukhoi] Failed to fetch Plane states:', (err as Error).message)

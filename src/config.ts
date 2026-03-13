@@ -32,6 +32,14 @@ function validate(raw: unknown): SukhoiConfig {
       ? cfg['prompt']
       : DEFAULT_PROMPT
 
+  const rawStates = (cfg['states'] ?? {}) as Record<string, unknown>
+  const states = {
+    todo:       typeof rawStates['todo']       === 'string' ? rawStates['todo']       : 'Todo',
+    inProgress: typeof rawStates['inProgress'] === 'string' ? rawStates['inProgress'] : 'In Progress',
+    done:       typeof rawStates['done']       === 'string' ? rawStates['done']       : 'Review/Testing',
+    failed:     typeof rawStates['failed']     === 'string' ? rawStates['failed']     : 'Cancelled',
+  }
+
   if (typeof cfg['models'] !== 'object' || cfg['models'] === null) {
     throw new Error('sukhoi.config.json: "models" must be an object')
   }
@@ -133,6 +141,7 @@ function validate(raw: unknown): SukhoiConfig {
     repo: cfg['repo'] as string,
     baseBranch,
     prompt,
+    states,
     classifier,
     models: models as Record<string, string>,
     routing: cfg['routing'] as SukhoiConfig['routing'],
@@ -186,7 +195,7 @@ export const env = {
   get openrouterApiKey() { return process.env['OPENROUTER_API_KEY'] ?? '' },
   get port() { return parseInt(process.env['PORT'] ?? '3000', 10) },
   get concurrency() { return parseInt(process.env['CONCURRENCY'] ?? '1', 10) },
-  get jobTimeoutMs() { return parseInt(process.env['JOB_TIMEOUT_MS'] ?? '600000', 10) },
+  get jobTimeoutMs() { return parseInt(process.env['JOB_TIMEOUT_MS'] ?? '1800000', 10) },
   // Optional: path to an opencode config file inside the container.
   // When set, the file is copied to ~/.config/opencode/config.json before each job.
   get opencodeConfigPath() { return process.env['OPENCODE_CONFIG_PATH'] ?? '' },

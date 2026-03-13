@@ -47,9 +47,9 @@ export async function processJob(job: Job): Promise<void> {
   console.log(`[worker] Issue: ${issueLabel} — ${issue.name}`)
 
   // ── Update state → In Progress ─────────────────────────────────────────────
-  const inProgressId = await getStateId(projectId, 'In Progress')
+  const inProgressId = await getStateId(projectId, config.states.inProgress)
   await updateIssueState(projectId, issueId, inProgressId)
-  console.log(`[worker] State → In Progress`)
+  console.log(`[worker] State → ${config.states.inProgress}`)
 
   // ── Route model ────────────────────────────────────────────────────────────
   const { model, reason: modelReason, complexity: classified } = await routeModel(issue, config)
@@ -130,8 +130,8 @@ export async function processJob(job: Job): Promise<void> {
       // log file may not exist if entrypoint never started
     }
 
-    const todoId = await getStateId(projectId, 'Todo')
-    await updateIssueState(projectId, issueId, todoId)
+  const cancelledId = await getStateId(projectId, config.states.failed)
+  await updateIssueState(projectId, issueId, cancelledId)
     await addComment(
       projectId,
       issueId,
@@ -142,7 +142,7 @@ export async function processJob(job: Job): Promise<void> {
         '',
         logTail ? `**Last output:**\n\`\`\`\n${logTail}\n\`\`\`` : '',
         '',
-        'Task has been returned to Todo. Please review and retry.',
+        'Task has been moved to Cancelled. Move back to Todo to retry.',
       ].join('\n').trimEnd()
     )
     fs.rmSync(resultDir, { recursive: true, force: true })
@@ -173,9 +173,9 @@ export async function processJob(job: Job): Promise<void> {
   fs.rmSync(resultDir, { recursive: true, force: true })
 
   // ── Update Plane state → Review/Testing ───────────────────────────────────
-  const reviewId = await getStateId(projectId, 'Review/Testing')
+  const reviewId = await getStateId(projectId, config.states.done)
   await updateIssueState(projectId, issueId, reviewId)
-  console.log(`[worker] State → Review/Testing`)
+  console.log(`[worker] State → ${config.states.done}`)
 
   // ── Post comment on Plane issue ────────────────────────────────────────────
   const comment = buildPlaneComment(
