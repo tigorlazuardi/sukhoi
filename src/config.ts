@@ -114,6 +114,24 @@ function validate(raw: unknown): SukhoiConfig {
         `sukhoi.config.json: routing rule "${rule['name']}" references unknown model "${rule['model']}"`
       )
     }
+    const match = rule['match'] as Record<string, unknown> | undefined
+    if (match) {
+      if (match['complexity'] !== undefined && !Array.isArray(match['complexity'])) {
+        throw new Error(
+          `sukhoi.config.json: routing rule "${rule['name']}" match.complexity must be an array`
+        )
+      }
+      if (match['priority'] !== undefined && !Array.isArray(match['priority'])) {
+        throw new Error(
+          `sukhoi.config.json: routing rule "${rule['name']}" match.priority must be an array`
+        )
+      }
+      if (match['labels'] !== undefined && !Array.isArray(match['labels'])) {
+        throw new Error(
+          `sukhoi.config.json: routing rule "${rule['name']}" match.labels must be an array`
+        )
+      }
+    }
   }
 
   return {

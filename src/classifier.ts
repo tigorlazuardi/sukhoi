@@ -1,5 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk'
-import { env } from './config.js'
+import { spawnSync } from 'node:child_process'
 import type { Complexity, PlaneIssue, SukhoiConfig } from './types.js'
 
 export interface ClassifyResult {
@@ -19,21 +18,29 @@ function stripHtml(html: string | null): string {
         .trim()
 }
 
-function buildClassifierPrompt(complexity: Record<string, string>): string {
+function buildClassifierPrompt(
+    complexity: Record<string, string>,
+    issue: PlaneIssue
+): string {
     const labels = Object.keys(complexity)
     const definitions = Object.entries(complexity)
         .map(([label, description]) => `- ${label}: ${description}`)
         .join('\n')
 
+    const description = stripHtml(issue.description_html)
+    const taskContent = `Task title: ${issue.name}\nTask description: ${description.slice(0, 1000)}`
+
     return `Classify this software engineering task into exactly one of the following categories.
 
 ${definitions}
 
-YOU MUST Respond with a JSON object with exactly two fields, no explanations or extra text outside the JSON object:
+YOU MUST respond with a JSON object with exactly two fields, no explanations or extra text outside the JSON object:
 - "result": one of ${labels.map((l) => `"${l}"`).join(', ')}
 - "reason": one sentence explaining why you chose that category
 
-Example: {"result": "${labels[0]}", "reason": "This task involves..."}`
+Example: {"result": "${labels[0]}", "reason": "This task involves..."}
+
+${taskContent}`
 }
 
 function fallback(complexity: Record<string, string>): ClassifyResult {
@@ -57,42 +64,41 @@ export async function classifyComplexity(
         return fallback(config.classifier.complexity)
     }
 
-    // Extract model ID from "provider/model-id"
-    const modelId = modelString.split('/').slice(1).join('/')
-
-    const description = stripHtml(issue.description_html)
-    const userContent = `Task title: ${issue.name}\nTask description: ${description.slice(0, 1000)}`
-    const systemPrompt = buildClassifierPrompt(config.classifier.complexity)
+    const prompt = buildClassifierPrompt(config.classifier.complexity, issue)
     const validLabels = Object.keys(config.classifier.complexity)
 
     try {
-        const client = new Anthropic({ apiKey: env.anthropicApiKey })
-        const response = await client.messages.create({
-            model: modelId,
-            max_tokens: 128,
-            messages: [
-                {
-                    role: 'user',
-                    content: `${systemPrompt}\n\n${userContent}`,
-                },
-            ],
+        const result = spawnSync('opencode', ['run', '--model', modelString, prompt], {
+            encoding: 'utf-8',
+            timeout: 60_000,
+            env: process.env,
         })
 
-        const firstContent = response.content[0]
-        const text =
-            firstContent?.type === 'text' ? firstContent.text.trim() : ''
-
-        // Parse JSON response
-        const parsed = JSON.parse(text) as { result?: string; reason?: string }
-        const result = parsed.result?.trim().toLowerCase() ?? ''
-        const reason = parsed.reason?.trim() ?? ''
-
-        if (validLabels.includes(result)) {
-            console.log(`[classifier] "${issue.name}" → ${result}: ${reason}`)
-            return { result, reason }
+        if (result.error) {
+            throw result.error
+        }
+        if (result.status !== 0) {
+            throw new Error(`opencode exited with code ${result.status}: ${result.stderr}`)
         }
 
-        console.warn(`[classifier] Unexpected result "${result}", using fallback`)
+        const output = result.stdout.trim()
+
+        // Extract JSON from output — opencode may include extra text/formatting
+        const jsonMatch = output.match(/\{[\s\S]*\}/)
+        if (!jsonMatch) {
+            throw new Error(`No JSON found in opencode output: ${output.slice(0, 200)}`)
+        }
+
+        const parsed = JSON.parse(jsonMatch[0]) as { result?: string; reason?: string }
+        const label = parsed.result?.trim().toLowerCase() ?? ''
+        const reason = parsed.reason?.trim() ?? ''
+
+        if (validLabels.includes(label)) {
+            console.log(`[classifier] "${issue.name}" → ${label}: ${reason}`)
+            return { result: label, reason }
+        }
+
+        console.warn(`[classifier] Unexpected result "${label}", using fallback`)
         return fallback(config.classifier.complexity)
     } catch (err) {
         console.error('[classifier] Classification failed:', (err as Error).message)
