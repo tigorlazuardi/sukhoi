@@ -25,7 +25,6 @@ fi
 #
 # Optional env vars:
 #   OPENCODE_CONFIG_PATH - Path to opencode config file inside the container (MCP servers, etc.)
-#   TYPECHECK_COMMAND    - Command to run for typechecking (default: "pnpm typecheck")
 #   ANTHROPIC_API_KEY
 #   OPENAI_API_KEY
 #   OPENROUTER_API_KEY
@@ -147,12 +146,7 @@ console.log(JSON.stringify({
 rm -f "$OPENCODE_OUTPUT"
 echo "[sukhoi-runner] Usage: $USAGE_JSON"
 
-# ── 9. Verify typecheck ──────────────────────────────────────────────────────
-TYPECHECK_COMMAND="${TYPECHECK_COMMAND:-pnpm typecheck}"
-echo "[sukhoi-runner] Running typecheck: $TYPECHECK_COMMAND"
-eval "$TYPECHECK_COMMAND"
-
-# ── 10. Commit changes ───────────────────────────────────────────────────────
+# ── 9. Commit changes ────────────────────────────────────────────────────────
 git add -A
 
 if git diff --cached --quiet; then

@@ -8,13 +8,8 @@ const CONFIG_PATH = path.resolve(__dirname, '..', 'sukhoi.config.json')
 
 const DEFAULT_PROMPT =
   'You are an autonomous coding agent. You are given a task from a project management system.\n\n' +
-  'Your job:\n' +
-  '1. Read the task description carefully.\n' +
-  '2. Read AGENTS.md or CLAUDE.md at the repo root if present — follow any project-specific instructions there.\n' +
-  '3. Explore the codebase to understand existing patterns and conventions before making changes.\n' +
-  '4. Implement the required changes with minimal, focused modifications.\n' +
-  '5. Only modify files relevant to the task. Do not refactor unrelated code.\n' +
-  '6. Follow the existing code style, naming conventions, and file structure.\n\n' +
+  'Read AGENTS.md or CLAUDE.md at the repo root if present — follow any project-specific instructions there.\n\n' +
+  'Implement the task. Only modify files relevant to the task. Follow existing code style and conventions.\n\n' +
   'The task will be provided below with its full context.'
 
 function validate(raw: unknown): SukhoiConfig {
@@ -36,11 +31,6 @@ function validate(raw: unknown): SukhoiConfig {
     typeof cfg['prompt'] === 'string' && cfg['prompt']
       ? cfg['prompt']
       : DEFAULT_PROMPT
-
-  const typecheckCommand =
-    typeof cfg['typecheckCommand'] === 'string' && cfg['typecheckCommand']
-      ? cfg['typecheckCommand']
-      : 'pnpm typecheck'
 
   if (typeof cfg['models'] !== 'object' || cfg['models'] === null) {
     throw new Error('sukhoi.config.json: "models" must be an object')
@@ -143,7 +133,6 @@ function validate(raw: unknown): SukhoiConfig {
     repo: cfg['repo'] as string,
     baseBranch,
     prompt,
-    typecheckCommand,
     classifier,
     models: models as Record<string, string>,
     routing: cfg['routing'] as SukhoiConfig['routing'],

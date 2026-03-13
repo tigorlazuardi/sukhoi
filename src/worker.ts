@@ -90,7 +90,6 @@ export async function processJob(job: Job): Promise<void> {
     ANTHROPIC_API_KEY:   env.anthropicApiKey,
     OPENAI_API_KEY:      env.openaiApiKey,
     OPENROUTER_API_KEY:  env.openrouterApiKey,
-    TYPECHECK_COMMAND:   config.typecheckCommand,
     WORKLOG_ENABLED:     String(config.worklog?.enabled ?? false),
     WORKLOG_MAX_ENTRIES: String(config.worklog?.maxEntries ?? 20),
     MODEL_REASON:        modelReason,

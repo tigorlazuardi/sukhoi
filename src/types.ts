@@ -66,7 +66,6 @@ export interface SukhoiConfig {
   repo: string
   baseBranch: string
   prompt: string
-  typecheckCommand: string // e.g. "pnpm typecheck" or "pnpm check"
   classifier: ClassifierConfig
   models: Record<string, string> // alias → "provider/model"
   routing: RoutingRule[]

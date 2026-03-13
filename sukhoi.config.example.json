@@ -2,9 +2,7 @@
   "repo": "https://github.com/your-org/your-repo.git",
   "baseBranch": "main",
 
-  "prompt": "You are an autonomous coding agent. You are given a task from a project management system.\n\nYour job:\n1. Read the task description carefully.\n2. Read AGENTS.md or CLAUDE.md at the repo root if present — follow any project-specific instructions there.\n3. Explore the codebase to understand existing patterns and conventions before making changes.\n4. Implement the required changes with minimal, focused modifications.\n5. Only modify files relevant to the task. Do not refactor unrelated code.\n6. Follow the existing code style, naming conventions, and file structure.\n\nThe task will be provided below with its full context.",
-
-  "typecheckCommand": "pnpm typecheck",
+  "prompt": "You are an autonomous coding agent. You are given a task from a project management system.\n\nRead AGENTS.md or CLAUDE.md at the repo root if present — follow any project-specific instructions there.\n\nImplement the task. Only modify files relevant to the task. Follow existing code style and conventions.\n\nThe task will be provided below with its full context.",
 
   "classifier": {
     "model": "haiku",
