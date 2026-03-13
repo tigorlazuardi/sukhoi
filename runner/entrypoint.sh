@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
+# If LOG_FILE is set, tee all output (stdout+stderr) to it unbuffered
+if [ -n "${LOG_FILE:-}" ]; then
+  exec > >(stdbuf -oL tee "$LOG_FILE") 2>&1
+fi
+
 # Required env vars (passed by worker.ts):
 #   GITHUB_TOKEN        - GitHub PAT for auth + gh CLI
 #   REPO_URL            - Authenticated HTTPS clone URL of target repo

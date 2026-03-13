@@ -108,16 +108,12 @@ export async function processJob(job: Job): Promise<void> {
 
   // ── Run entrypoint.sh, tee output to log file for error capture ───────────
   const logFile = path.join(resultDir, 'runner.log')
-  const result = spawnSync(
-    'bash',
-    ['-c', `bash "${ENTRYPOINT}" 2>&1 | tee "${logFile}"; exit \${PIPESTATUS[0]}`],
-    {
-      timeout: env.jobTimeoutMs,
-      stdio:   'inherit',
-      encoding: 'utf-8',
-      env: runnerEnv,
-    }
-  )
+  const result = spawnSync('bash', [ENTRYPOINT], {
+    timeout: env.jobTimeoutMs,
+    stdio:   'inherit',
+    encoding: 'utf-8',
+    env: { ...runnerEnv, LOG_FILE: logFile },
+  })
 
   // ── Handle result ──────────────────────────────────────────────────────────
   if (result.status !== 0 || result.error) {
