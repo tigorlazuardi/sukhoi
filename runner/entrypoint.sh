@@ -39,7 +39,7 @@ WORKLOG_MAX_ENTRIES="${WORKLOG_MAX_ENTRIES:-20}"
 
 # ── 1. Auth GitHub ───────────────────────────────────────────────────────────
 echo "[sukhoi-runner] Authenticating with GitHub..."
-echo "$GITHUB_TOKEN" | gh auth login --with-token
+echo "$GITHUB_TOKEN" | gh auth login --with-token || true
 gh auth setup-git
 
 # ── 2. Configure git identity ────────────────────────────────────────────────
