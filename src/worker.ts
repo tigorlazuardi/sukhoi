@@ -106,25 +106,48 @@ export async function processJob(job: Job): Promise<void> {
 
   console.log(`[worker] Running entrypoint for ${issueLabel} with model ${model}...`)
 
-  // ── Run entrypoint.sh directly as a subprocess ────────────────────────────
-  const result = spawnSync('bash', [ENTRYPOINT], {
-    timeout: env.jobTimeoutMs,
-    stdio:   'inherit',
-    encoding: 'utf-8',
-    env: runnerEnv,
-  })
+  // ── Run entrypoint.sh, tee output to log file for error capture ───────────
+  const logFile = path.join(resultDir, 'runner.log')
+  const result = spawnSync(
+    'bash',
+    ['-c', `bash "${ENTRYPOINT}" 2>&1 | tee "${logFile}"; exit \${PIPESTATUS[0]}`],
+    {
+      timeout: env.jobTimeoutMs,
+      stdio:   'inherit',
+      encoding: 'utf-8',
+      env: runnerEnv,
+    }
+  )
 
   // ── Handle result ──────────────────────────────────────────────────────────
   if (result.status !== 0 || result.error) {
     const errMsg = result.error?.message ?? `exit code ${result.status}`
     console.error(`[worker] Runner failed: ${errMsg}`)
 
+    // Read last 50 lines of log for error context
+    let logTail = ''
+    try {
+      const logContent = fs.readFileSync(logFile, 'utf-8')
+      const lines = logContent.trimEnd().split('\n')
+      logTail = lines.slice(-50).join('\n')
+    } catch {
+      // log file may not exist if entrypoint never started
+    }
+
     const todoId = await getStateId(projectId, 'Todo')
     await updateIssueState(projectId, issueId, todoId)
     await addComment(
       projectId,
       issueId,
-      `**Sukhoi agent failed for ${issueLabel}.**\n\nError: \`${errMsg}\`\n\nTask has been returned to Todo. Please review and retry.`
+      [
+        `**Sukhoi agent failed for ${issueLabel}.**`,
+        '',
+        `Error: \`${errMsg}\``,
+        '',
+        logTail ? `**Last output:**\n\`\`\`\n${logTail}\n\`\`\`` : '',
+        '',
+        'Task has been returned to Todo. Please review and retry.',
+      ].join('\n').trimEnd()
     )
     fs.rmSync(resultDir, { recursive: true, force: true })
     return
