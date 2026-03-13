@@ -122,7 +122,8 @@ export function createWebhookHandler(onTrigger: WebhookHandler) {
             return
         }
 
-        if (issue.state !== todoStateId) return
+        const stateId = typeof issue.state === 'string' ? issue.state : issue.state.id
+        if (stateId !== todoStateId) return
 
         console.log(
             `[webhook] Issue ${issue.id} (seq ${issue.sequence_id}) moved to Todo — triggering agent`

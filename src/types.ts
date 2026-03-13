@@ -12,7 +12,7 @@ export interface PlaneIssue {
   name: string
   description_html: string | null
   priority: 'urgent' | 'high' | 'medium' | 'low' | 'none'
-  state: string // UUID
+  state: string | PlaneState // UUID string (API) or object (webhook payload)
   labels: PlaneLabel[]
   parent: { id: string; name: string } | null
   project: string // UUID
