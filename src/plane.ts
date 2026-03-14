@@ -1,6 +1,6 @@
 import { marked } from 'marked'
 import { env } from './config.js'
-import type { PlaneIssue, PlaneState } from './types.js'
+import type { PlaneIssue, PlaneLabel, PlaneState } from './types.js'
 
 function baseUrl(): string {
   return `${env.planeBaseUrl}/api/v1/workspaces/${env.planeWorkspaceSlug}`
@@ -78,11 +78,45 @@ export async function getStateId(
 
 // ── Issues ───────────────────────────────────────────────────────────────────
 
+interface PlaneIssueRaw extends Omit<PlaneIssue, 'labels'> {
+  labels: PlaneLabel[] | string[]
+}
+
 export async function getIssue(
   projectId: string,
   issueId: string
 ): Promise<PlaneIssue> {
-  return request<PlaneIssue>('GET', `/projects/${projectId}/issues/${issueId}/`)
+  const raw = await request<PlaneIssueRaw>('GET', `/projects/${projectId}/issues/${issueId}/`)
+
+  // Plane API returns labels as UUID strings; normalize to PlaneLabel objects
+  // by fetching label details when needed.
+  let labels: PlaneLabel[]
+  if (raw.labels.length === 0 || typeof raw.labels[0] === 'object') {
+    labels = raw.labels as PlaneLabel[]
+  } else {
+    const all = await getLabels(projectId)
+    const ids = raw.labels as string[]
+    labels = ids.flatMap((id) => {
+      const found = all.get(id)
+      return found ? [found] : []
+    })
+  }
+
+  return { ...raw, labels }
+}
+
+let _labelCache: Map<string, PlaneLabel> | null = null
+
+async function getLabels(projectId: string): Promise<Map<string, PlaneLabel>> {
+  if (_labelCache) return _labelCache
+
+  const res = await request<{ results: PlaneLabel[] }>(
+    'GET',
+    `/projects/${projectId}/labels/`
+  )
+
+  _labelCache = new Map(res.results.map((l) => [l.id, l]))
+  return _labelCache
 }
 
 export async function updateIssueState(
