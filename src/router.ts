@@ -8,17 +8,6 @@ export interface RouteResult {
   complexity: ClassifyResult | null  // classifier output if used, null otherwise
 }
 
-function ruleNeedsComplexity(rules: RoutingRule[], issue: PlaneIssue): boolean {
-  return rules.some((r) => {
-    if (!r.match.complexity || r.match.complexity.length === 0) return false
-    // If rule has labels and the issue matches those labels, complexity is not needed
-    if (r.match.labels && r.match.labels.length > 0) {
-      const labelMatched = issue.labels.some((l) => r.match.labels!.includes(l.name))
-      if (labelMatched) return false
-    }
-    return true
-  })
-}
 
 function matchesRule(
   rule: RoutingRule,
@@ -88,40 +77,20 @@ export async function routeModel(
 ): Promise<RouteResult> {
   let classified: ClassifyResult | null = null
 
-  // First pass: match rules that don't need complexity classification.
-  // A rule with complexity is still skippable if its labels already match
-  // (label match implies user intent → no need to classify).
+  // Evaluate rules sequentially — first match wins.
+  // Classifier is called lazily (at most once) only when a rule requires complexity.
   for (const rule of config.routing) {
     const hasComplexity = rule.match.complexity && rule.match.complexity.length > 0
-    const hasLabels = rule.match.labels && rule.match.labels.length > 0
-    const labelMatched = hasLabels && issue.labels.some((l) => rule.match.labels!.includes(l.name))
 
-    // Skip classifier if rule has no complexity requirement,
-    // OR if rule has both labels+complexity but label already matched
-    const skipClassifier = !hasComplexity || (hasComplexity && labelMatched)
-    if (!skipClassifier) continue
-
-    if (matchesRule(rule, issue, null)) {
-      const model = config.models[rule.model]!
-      const reason = buildReason(rule, rule.model, model, null)
-      console.log(`[router] Rule "${rule.name}" matched (no classifier) → ${model}`)
-      return { model, reason, complexity: null }
+    if (hasComplexity && classified === null) {
+      classified = await classifyComplexity(issue, config)
     }
-  }
 
-  // Second pass: if any remaining rules need complexity, classify once then evaluate all
-  if (ruleNeedsComplexity(config.routing, issue)) {
-    classified = await classifyComplexity(issue, config)
-
-    for (const rule of config.routing) {
-      if (matchesRule(rule, issue, classified.result)) {
-        const model = config.models[rule.model]!
-        const reason = buildReason(rule, rule.model, model, classified.result)
-        console.log(
-          `[router] Rule "${rule.name}" matched (complexity=${classified.result}) → ${model}`
-        )
-        return { model, reason, complexity: classified }
-      }
+    if (matchesRule(rule, issue, classified?.result ?? null)) {
+      const model = config.models[rule.model]!
+      const reason = buildReason(rule, rule.model, model, classified?.result ?? null)
+      console.log(`[router] Rule "${rule.name}" matched → ${model}`)
+      return { model, reason, complexity: classified }
     }
   }
 
