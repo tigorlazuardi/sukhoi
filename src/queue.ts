@@ -8,6 +8,7 @@ export class JobQueue {
   private running = 0
   private readonly concurrency: number
   private handler: JobHandler | null = null
+  private readonly activeControllers = new Set<AbortController>()
 
   constructor(concurrency = 1) {
     this.concurrency = concurrency
@@ -18,12 +19,16 @@ export class JobQueue {
   }
 
   enqueue(issueId: string, projectId: string): Job {
+    const controller = new AbortController()
     const job: Job = {
       id: randomUUID(),
       issueId,
       projectId,
       enqueuedAt: new Date(),
+      signal: controller.signal,
     }
+    // Store controller alongside job so we can abort pending jobs too
+    ;(job as Job & { _controller: AbortController })._controller = controller
     this.queue.push(job)
     console.log(
       `[queue] Enqueued job ${job.id} for issue ${issueId} (queue depth: ${this.queue.length})`
@@ -32,11 +37,23 @@ export class JobQueue {
     return job
   }
 
+  /** Abort all active (running) jobs immediately. Pending jobs are dropped. */
+  killActive(): void {
+    // Drop pending jobs
+    this.queue.length = 0
+    // Abort running jobs
+    for (const controller of this.activeControllers) {
+      controller.abort()
+    }
+  }
+
   private drain(): void {
     if (!this.handler) return
     while (this.running < this.concurrency && this.queue.length > 0) {
       const job = this.queue.shift()!
+      const controller = (job as Job & { _controller: AbortController })._controller
       this.running++
+      this.activeControllers.add(controller)
       console.log(`[queue] Starting job ${job.id} (running: ${this.running})`)
       this.handler(job)
         .catch((err: unknown) => {
@@ -44,6 +61,7 @@ export class JobQueue {
         })
         .finally(() => {
           this.running--
+          this.activeControllers.delete(controller)
           console.log(
             `[queue] Job ${job.id} finished (running: ${this.running})`
           )

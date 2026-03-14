@@ -74,7 +74,8 @@ async function main(): Promise<void> {
 
   // ── Graceful shutdown ──────────────────────────────────────────────────────
   const shutdown = (): void => {
-    console.log('[sukhoi] Shutting down...')
+    console.log('[sukhoi] Shutting down — killing active jobs...')
+    queue.killActive()
     server.close(() => process.exit(0))
   }
   process.on('SIGTERM', shutdown)

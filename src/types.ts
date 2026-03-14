@@ -88,6 +88,7 @@ export interface Job {
   issueId: string    // Plane issue UUID
   projectId: string  // Plane project UUID
   enqueuedAt: Date
+  signal: AbortSignal
 }
 
 // ── Runner result ────────────────────────────────────────────────────────────

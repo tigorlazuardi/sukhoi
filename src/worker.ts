@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
@@ -10,6 +10,53 @@ import type { Job, RunnerResult } from './types.js'
 
 const ENTRYPOINT = process.env['ENTRYPOINT'] ?? '/runner/entrypoint.sh'
 const REPO_CACHE_DIR = process.env['REPO_CACHE_DIR'] ?? '/repo-cache'
+
+interface SpawnResult {
+  status: number | null
+  error?: Error
+}
+
+function runEntrypoint(
+  entrypoint: string,
+  env: Record<string, string>,
+  timeoutMs: number,
+  signal: AbortSignal,
+): Promise<SpawnResult> {
+  return new Promise((resolve) => {
+    const child = spawn('bash', [entrypoint], {
+      stdio: 'inherit',
+      env,
+    })
+
+    let settled = false
+    const finish = (result: SpawnResult): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      signal.removeEventListener('abort', onAbort)
+      resolve(result)
+    }
+
+    const onAbort = (): void => {
+      console.log('[worker] Abort signal received — killing child process')
+      child.kill('SIGTERM')
+      // Force kill after 5s if still running
+      setTimeout(() => child.kill('SIGKILL'), 5000)
+    }
+
+    const timer = setTimeout(() => {
+      console.log(`[worker] Job timed out after ${timeoutMs}ms — killing child process`)
+      child.kill('SIGTERM')
+      setTimeout(() => child.kill('SIGKILL'), 5000)
+      finish({ status: null, error: new Error(`timed out after ${timeoutMs}ms`) })
+    }, timeoutMs)
+
+    signal.addEventListener('abort', onAbort, { once: true })
+
+    child.on('error', (err) => finish({ status: null, error: err }))
+    child.on('close', (code) => finish({ status: code }))
+  })
+}
 
 /**
  * Convert a repo URL (SSH or HTTPS) to an authenticated HTTPS URL.
@@ -106,15 +153,15 @@ export async function processJob(job: Job): Promise<void> {
 
   console.log(`[worker] Running entrypoint for ${issueLabel} with model ${model}...`)
 
-  // ── Run entrypoint.sh, tee output to log file for error capture ───────────
+  // ── Run entrypoint.sh ─────────────────────────────────────────────────────
   const logFile = path.join(resultDir, 'runner.log')
   const summaryFile = path.join(resultDir, 'summary.md')
-  const result = spawnSync('bash', [ENTRYPOINT], {
-    timeout: env.jobTimeoutMs,
-    stdio:   'inherit',
-    encoding: 'utf-8',
-    env: { ...runnerEnv, LOG_FILE: logFile, SUMMARY_FILE: summaryFile },
-  })
+  const result = await runEntrypoint(
+    ENTRYPOINT,
+    { ...runnerEnv, LOG_FILE: logFile, SUMMARY_FILE: summaryFile },
+    env.jobTimeoutMs,
+    job.signal,
+  )
 
   // ── Handle result ──────────────────────────────────────────────────────────
   if (result.status !== 0 || result.error) {
